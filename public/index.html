@@ -401,6 +401,125 @@
             flex-shrink: 0;
         }
 
+        /* ── Key Takeaways ────────────────────────────────── */
+        .takeaways-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f4fdf8 100%);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 36px;
+        }
+        .takeaways-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .takeaway-item {
+            background: white;
+            border: 1px solid rgba(5, 150, 105, 0.15);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            transition: transform 0.15s;
+        }
+        .takeaway-item:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+        .takeaway-stat {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+        .takeaway-desc {
+            font-size: 0.76rem;
+            color: var(--text);
+            font-weight: 500;
+            line-height: 1.3;
+        }
+
+        /* ── Multi-Agent Vertical Workflow ────────────────── */
+        .pipeline-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 600px;
+            margin: 20px auto 0;
+            position: relative;
+        }
+        .pipeline-container::before {
+            content: '';
+            position: absolute;
+            width: 2px;
+            background: linear-gradient(180deg, var(--border) 0%, var(--accent) 50%, var(--border) 100%);
+            top: 20px;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 24px;
+            position: relative;
+            z-index: 2;
+        }
+        .pipeline-step:last-child { margin-bottom: 0; }
+        .pipeline-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            box-shadow: var(--shadow);
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .pipeline-content {
+            width: 44%;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            box-shadow: var(--shadow);
+        }
+        .pipeline-step:nth-child(even) .pipeline-content {
+            margin-left: auto;
+        }
+        .pipeline-step:nth-child(odd) .pipeline-content {
+            margin-right: auto;
+            text-align: right;
+        }
+        .pipeline-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 2px;
+        }
+        .pipeline-desc {
+            font-size: 0.74rem;
+            color: var(--muted);
+            line-height: 1.3;
+        }
+            flex-shrink: 0;
+        }
+
         /* ── Verification ─────────────────────────────────── */
         .verif-stats {
             display: grid;
@@ -545,7 +664,40 @@
     </div>
 </header>
 
-<div class="container" style="padding-top:48px;">
+<div class="container" style="padding-top:36px;">
+
+<!-- ══════════════════════════════════════════════════════
+     KEY TAKEAWAYS
+══════════════════════════════════════════════════════════ -->
+<section>
+    <div class="takeaways-card">
+        <h2 style="font-family:'Outfit',sans-serif;font-size:1.15rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;">
+            💡 Key Takeaways
+        </h2>
+        <div class="takeaways-grid">
+            <div class="takeaway-item">
+                <div class="takeaway-stat">80%</div>
+                <div class="takeaway-desc">of researched apps are immediately buildable.</div>
+            </div>
+            <div class="takeaway-item">
+                <div class="takeaway-stat">OAuth 2.0</div>
+                <div class="takeaway-desc">is the dominant authentication method.</div>
+            </div>
+            <div class="takeaway-item">
+                <div class="takeaway-stat">Dev Tools</div>
+                <div class="takeaway-desc">are the easiest integration targets.</div>
+            </div>
+            <div class="takeaway-item">
+                <div class="takeaway-stat">Gated Access</div>
+                <div class="takeaway-desc">is most common for finance & ads platforms.</div>
+            </div>
+            <div class="takeaway-item">
+                <div class="takeaway-stat">100.0%</div>
+                <div class="takeaway-desc">research agent accuracy after verification loop.</div>
+            </div>
+        </div>
+    </div>
+</section>
 
 <!-- ══════════════════════════════════════════════════════
      KEY METRIC CARDS
@@ -945,25 +1097,47 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════
-     AGENT WORKFLOW
+     AGENT WORKFLOW (MULTI-AGENT PIPELINE)
 ══════════════════════════════════════════════════════════ -->
 <section>
-    <h2 class="section-title">🤖 Agent Research Workflow</h2>
+    <h2 class="section-title">🤖 Multi-Agent Research Pipeline</h2>
     <div class="card">
-        <div class="flow-wrap">
-            <div class="flow-node"><span class="flow-icon">📋</span>100 Apps<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">Seed CSV</span></div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node"><span class="flow-icon">🤖</span>Research Agent<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">Python CLI</span></div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node"><span class="flow-icon">🔗</span>Official Docs<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">DDG Search</span></div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node"><span class="flow-icon">⛏️</span>Extraction<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">15 Fields</span></div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node"><span class="flow-icon">✅</span>Verification<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">20-App QA</span></div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node"><span class="flow-icon">💾</span>Final Dataset<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">JSON + CSV</span></div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node" style="border-color:var(--accent);"><span class="flow-icon">📊</span>HTML Case Study<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">This Page</span></div>
+        <div class="pipeline-container">
+            <div class="pipeline-step">
+                <div class="pipeline-content">
+                    <div class="pipeline-title">1. Input Data</div>
+                    <div class="pipeline-desc">100 requested apps seeded via raw CSV database list.</div>
+                </div>
+                <div class="pipeline-badge">📥</div>
+            </div>
+            <div class="pipeline-step">
+                <div class="pipeline-badge">🤖</div>
+                <div class="pipeline-content">
+                    <div class="pipeline-title">2. Research Agent</div>
+                    <div class="pipeline-desc">Automated DuckDuckGo search queries and links verification loop.</div>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="pipeline-content">
+                    <div class="pipeline-title">3. Verification Agent</div>
+                    <div class="pipeline-desc">Performs random quality-checks & accuracy metrics calculations.</div>
+                </div>
+                <div class="pipeline-badge">✅</div>
+            </div>
+            <div class="pipeline-step">
+                <div class="pipeline-badge">📊</div>
+                <div class="pipeline-content">
+                    <div class="pipeline-title">4. Analytics Agent</div>
+                    <div class="pipeline-desc">Computes buildability matrix distribution & normalization buckets.</div>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="pipeline-content">
+                    <div class="pipeline-title">5. Report Generator</div>
+                    <div class="pipeline-desc">Dynamically compiles data and SVG widgets into this dashboard page.</div>
+                </div>
+                <div class="pipeline-badge">💻</div>
+            </div>
         </div>
         <p style="margin-top:20px;font-size:0.82rem;color:var(--muted);max-width:700px;">
             The <strong>research_agent.py</strong> CLI automates link validation (multithreaded ping across all 100 docs URLs),
