@@ -1,46 +1,152 @@
 import json
 import os
-import sys
+import math
 
 JSON_PATH = os.path.join('data', 'apps_research.json')
 METRICS_PATH = os.path.join('data', 'verification_metrics.json')
 HTML_PATH = os.path.join('public', 'index.html')
 
+# ─── helpers ────────────────────────────────────────────────────────────────
+
+def hbar(label, count, total, color, max_count=None):
+    """Render a horizontal bar row."""
+    pct = (count / total) * 100
+    bar_pct = (count / (max_count or total)) * 100
+    return f"""
+        <div class="chart-item">
+            <div class="chart-label">
+                <span>{label}</span>
+                <span class="chart-val">{count} &nbsp;<span style="color:#94a3b8;font-size:0.78rem;">({pct:.0f}%)</span></span>
+            </div>
+            <div class="chart-bar-bg">
+                <div class="chart-bar-fill" style="width:{bar_pct:.1f}%;background:{color};"></div>
+            </div>
+        </div>"""
+
+def donut_svg(slices, size=200):
+    """
+    Build an SVG donut chart.
+    slices = [(label, count, color), ...]
+    """
+    total = sum(s[1] for s in slices)
+    if total == 0:
+        return "<p>No data</p>"
+    r = 80; cx = cy = size // 2; stroke = 38
+    circumference = 2 * math.pi * r
+    offset = 0
+    paths = []
+    legend = []
+    for label, count, color in slices:
+        fraction = count / total
+        dash = fraction * circumference
+        paths.append(
+            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" '
+            f'stroke-width="{stroke}" stroke-dasharray="{dash:.2f} {circumference:.2f}" '
+            f'stroke-dashoffset="{-offset:.2f}" style="transform:rotate(-90deg);transform-origin:{cx}px {cy}px;"/>'
+        )
+        pct = fraction * 100
+        legend.append(
+            f'<div class="donut-legend-row">'
+            f'<span class="donut-dot" style="background:{color};"></span>'
+            f'<span class="donut-legend-label">{label}</span>'
+            f'<span class="donut-legend-val">{count} <span style="color:#94a3b8;font-size:0.78rem;">({pct:.0f}%)</span></span>'
+            f'</div>'
+        )
+        offset += dash
+    svg = (f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">'
+           + ''.join(paths)
+           + f'<text x="{cx}" y="{cy}" text-anchor="middle" dominant-baseline="middle" '
+             f'font-size="22" font-weight="700" fill="#1e293b">{total}</text>'
+           + f'<text x="{cx}" y="{cy+20}" text-anchor="middle" dominant-baseline="middle" '
+             f'font-size="10" fill="#64748b">apps</text>'
+           + '</svg>')
+    return f'<div class="donut-wrap">{svg}<div class="donut-legend">{"".join(legend)}</div></div>'
+
+
 def build_html():
     if not os.path.exists(JSON_PATH):
         print(f"Error: {JSON_PATH} not found.")
         return
-        
+
     with open(JSON_PATH, 'r', encoding='utf-8-sig') as f:
         db = json.load(f)
-        
+
     metrics = {}
     if os.path.exists(METRICS_PATH):
         with open(METRICS_PATH, 'r', encoding='utf-8-sig') as f:
             metrics = json.load(f)
-            
-    # Compute stats
+
     total_apps = len(db)
-    
-    # Buildability distribution
+
+    # ── Buildability ────────────────────────────────────────────────────────
     buildability_counts = {}
     for app in db:
         v = app.get("buildability", "Unknown")
         buildability_counts[v] = buildability_counts.get(v, 0) + 1
-        
-    # Self-serve distribution
+
+    build_colors = {
+        "Easy win":                "#059669",
+        "Buildable":               "#2563eb",
+        "Buildable with caveats":  "#d97706",
+        "Outreach needed":         "#7c3aed",
+        "Not currently buildable": "#dc2626"
+    }
+    buildability_bars = ""
+    max_build = max(buildability_counts.values()) if buildability_counts else 1
+    for label, count in sorted(buildability_counts.items(), key=lambda x: x[1], reverse=True):
+        buildability_bars += hbar(label, count, total_apps, build_colors.get(label, "#64748b"), max_build)
+
+    # ── Buildability by category ────────────────────────────────────────────
+    categories = sorted(set(app.get("category") for app in db))
+    cat_build = {}
+    for cat in categories:
+        cat_build[cat] = {"buildable": 0, "total": 0}
+    for app in db:
+        cat = app.get("category")
+        verdict = app.get("buildability", "")
+        if cat in cat_build:
+            cat_build[cat]["total"] += 1
+            if verdict in ("Easy win", "Buildable", "Buildable with caveats"):
+                cat_build[cat]["buildable"] += 1
+
+    cat_build_bars = ""
+    # sort by buildable count desc
+    for cat, d in sorted(cat_build.items(), key=lambda x: x[1]["buildable"], reverse=True):
+        count = d["buildable"]
+        total_cat = d["total"]
+        pct = (count / total_cat * 100) if total_cat else 0
+        cat_build_bars += f"""
+        <div class="chart-item">
+            <div class="chart-label">
+                <span style="font-size:0.82rem;">{cat}</span>
+                <span class="chart-val">{count}/{total_cat} &nbsp;<span style="color:#94a3b8;font-size:0.78rem;">({pct:.0f}%)</span></span>
+            </div>
+            <div class="chart-bar-bg">
+                <div class="chart-bar-fill" style="width:{pct:.1f}%;background:linear-gradient(90deg,#059669,#34d399);"></div>
+            </div>
+        </div>"""
+
+    # ── Self-serve ──────────────────────────────────────────────────────────
     self_serve_counts = {}
     for app in db:
         v = app.get("self_serve_status", "Unknown")
         self_serve_counts[v] = self_serve_counts.get(v, 0) + 1
-        
-    # MCP distribution
+
+    ss_colors = {"self-serve": "#059669", "mixed": "#d97706", "gated": "#dc2626"}
+    donut_slices = [
+        (k, self_serve_counts.get(k, 0), ss_colors.get(k, "#64748b"))
+        for k in ["self-serve", "mixed", "gated"]
+        if self_serve_counts.get(k, 0) > 0
+    ]
+    donut_html = donut_svg(donut_slices, size=180)
+
+    # ── MCP ─────────────────────────────────────────────────────────────────
     mcp_counts = {}
     for app in db:
         v = app.get("mcp_available", "Unknown")
         mcp_counts[v] = mcp_counts.get(v, 0) + 1
-        
-    # Auth methods summary, normalized into reviewer-friendly buckets.
+
+    # ── Auth ─────────────────────────────────────────────────────────────────
     auth_counts = {
         "OAuth 2.0": 0,
         "API Key / Token": 0,
@@ -53,7 +159,7 @@ def build_html():
         auth = app.get("auth_methods", "").lower()
         if "oauth" in auth:
             auth_counts["OAuth 2.0"] += 1
-        if "api key" in auth or "api keys" in auth or "personal access" in auth or "access token" in auth or "bot token" in auth or "token" in auth:
+        if "api key" in auth or "personal access" in auth or "access token" in auth or "bot token" in auth or "token" in auth:
             auth_counts["API Key / Token"] += 1
         if "bearer" in auth:
             auth_counts["Bearer Token"] += 1
@@ -61,1038 +167,982 @@ def build_html():
             auth_counts["Basic Auth"] += 1
         if "hmac" in auth or "signature" in auth or "custom" in auth or "certificate" in auth or "client id" in auth or "secret" in auth:
             auth_counts["Custom / Signed"] += 1
-        if "no api" in auth or "cli" in auth or "no api/auth" in auth:
+        if "no api" in auth or "cli" in auth:
             auth_counts["No hosted auth / CLI"] += 1
-    sorted_auths = [(k, v) for k, v in sorted(auth_counts.items(), key=lambda x: x[1], reverse=True) if v > 0]
-    
-    # Category list and data
-    categories = sorted(list(set(app.get("category") for app in db)))
-    
-    # Matrix data: category -> buildability status count
-    matrix = {}
-    for cat in categories:
-        matrix[cat] = {
-            "Easy win": 0,
-            "Buildable": 0,
-            "Buildable with caveats": 0,
-            "Outreach needed": 0,
-            "Not currently buildable": 0
-        }
-    for app in db:
-        cat = app.get("category")
-        verdict = app.get("buildability")
-        if cat in matrix and verdict in matrix[cat]:
-            matrix[cat][verdict] += 1
 
-    # Render category rows for matrix
-    matrix_rows_html = ""
-    for cat, counts in matrix.items():
-        matrix_rows_html += f"""
-        <tr>
-            <td class="cat-cell">{cat}</td>
-            <td class="val-cell val-easy-win">{counts['Easy win']}</td>
-            <td class="val-cell val-buildable">{counts['Buildable']}</td>
-            <td class="val-cell val-caveats">{counts['Buildable with caveats']}</td>
-            <td class="val-cell val-outreach">{counts['Outreach needed']}</td>
-            <td class="val-cell val-not-buildable">{counts['Not currently buildable']}</td>
-            <td class="val-total">{sum(counts.values())}</td>
-        </tr>
-        """
-
-    # Generate charts HTML
-    # Buildability distribution bar chart
-    buildability_bars = ""
-    colors = {
-        "Easy win": "#059669", # Mint Green
-        "Buildable": "#2563eb", # Blue
-        "Buildable with caveats": "#d97706", # Orange
-        "Outreach needed": "#7c3aed", # Purple
-        "Not currently buildable": "#dc2626" # Red
-    }
-    for label, count in sorted(buildability_counts.items(), key=lambda x: x[1], reverse=True):
-        color = colors.get(label, "#64748b")
-        pct = (count / total_apps) * 100
-        buildability_bars += f"""
-        <div class="chart-item">
-            <div class="chart-label">
-                <span>{label}</span>
-                <span class="chart-val">{count} ({pct:.1f}%)</span>
-            </div>
-            <div class="chart-bar-bg">
-                <div class="chart-bar-fill" style="width: {pct}%; background-color: {color};"></div>
-            </div>
-        </div>
-        """
-        
-    # MCP Distribution bar chart
-    mcp_colors = {
-        "Official MCP": "#059669",
-        "Third-party MCP": "#2563eb",
-        "No": "#dc2626",
-        "No official MCP found": "#dc2626"
-    }
-    mcp_bars = ""
-    for label, count in sorted(mcp_counts.items(), key=lambda x: x[1], reverse=True):
-        color = mcp_colors.get(label, "#64748b")
-        pct = (count / total_apps) * 100
-        mcp_bars += f"""
-        <div class="chart-item">
-            <div class="chart-label">
-                <span>{label}</span>
-                <span class="chart-val">{count} ({pct:.1f}%)</span>
-            </div>
-            <div class="chart-bar-bg">
-                <div class="chart-bar-fill" style="width: {pct}%; background-color: {color};"></div>
-            </div>
-        </div>
-        """
-
-    # Auth Methods bar chart
+    auth_palette = ["#7c3aed","#2563eb","#0891b2","#059669","#d97706","#64748b"]
     auth_bars = ""
-    for label, count in sorted_auths:
-        pct = (count / total_apps) * 100
-        auth_bars += f"""
-        <div class="chart-item">
-            <div class="chart-label">
-                <span>{label}</span>
-                <span class="chart-val">{count} ({pct:.1f}%)</span>
-            </div>
-            <div class="chart-bar-bg">
-                <div class="chart-bar-fill" style="width: {pct}%; background-color: #db2777;"></div>
-            </div>
-        </div>
-        """
+    max_auth = max(auth_counts.values()) if auth_counts else 1
+    for i, (label, count) in enumerate(sorted(auth_counts.items(), key=lambda x: x[1], reverse=True)):
+        if count > 0:
+            auth_bars += hbar(label, count, total_apps, auth_palette[i % len(auth_palette)], max_auth)
 
-    # Self-serve distribution bar chart
-    self_serve_colors = {
-        "self-serve": "#059669",
-        "gated": "#dc2626",
-        "mixed": "#d97706",
-        "unclear": "#64748b"
-    }
-    self_serve_bars = ""
-    for label, count in sorted(self_serve_counts.items(), key=lambda x: x[1], reverse=True):
-        color = self_serve_colors.get(label, "#64748b")
-        pct = (count / total_apps) * 100
-        self_serve_bars += f"""
-        <div class="chart-item">
-            <div class="chart-label">
-                <span>{label}</span>
-                <span class="chart-val">{count} ({pct:.1f}%)</span>
-            </div>
-            <div class="chart-bar-bg">
-                <div class="chart-bar-fill" style="width: {pct}%; background-color: {color};"></div>
-            </div>
-        </div>
-        """
-
-    # Confidence distribution (using 'confidence' field in JSON)
+    # ── Confidence ──────────────────────────────────────────────────────────
     conf_counts = {}
     for app in db:
         v = app.get("confidence", "Unknown")
         conf_counts[v] = conf_counts.get(v, 0) + 1
 
-    # Render App research database rows in JS format.
-    # Add 'confidence_level' alias so JS templates can use either key name.
-    db_serializable = [
-        {**app, "confidence_level": app.get("confidence", "Unknown"),
-         "main_blocker": app.get("main_blocker") or "—"}
-        for app in db
-    ]
-    db_js = json.dumps(db_serializable, ensure_ascii=False)
-    
-    # Render mistakes table
+    # ── Top blockers ─────────────────────────────────────────────────────────
+    blocker_buckets = {
+        "Enterprise / Admin Setup":  0,
+        "OAuth App Review":          0,
+        "Paid Plan Required":        0,
+        "No Public API":             0,
+        "Partner / Contract Access": 0,
+        "Gated Sandbox / Waitlist":  0,
+        "Rate Limits / Quotas":      0,
+    }
+    for app in db:
+        b = (app.get("main_blocker") or "").lower()
+        if not b or b == "—":
+            continue
+        if any(k in b for k in ["admin", "administrator", "enterprise", "certificate", "jwt"]):
+            blocker_buckets["Enterprise / Admin Setup"] += 1
+        if any(k in b for k in ["oauth", "approval", "app review", "verification"]):
+            blocker_buckets["OAuth App Review"] += 1
+        if any(k in b for k in ["paid", "pricing", "subscription", "plan", "commercial", "license"]):
+            blocker_buckets["Paid Plan Required"] += 1
+        if any(k in b for k in ["no api", "no public api", "no hosted api", "cli only", "local cli"]):
+            blocker_buckets["No Public API"] += 1
+        if any(k in b for k in ["partner", "contract", "nda", "sales", "enterprise agreement"]):
+            blocker_buckets["Partner / Contract Access"] += 1
+        if any(k in b for k in ["sandbox", "waitlist", "gated", "whitelist", "early access"]):
+            blocker_buckets["Gated Sandbox / Waitlist"] += 1
+        if any(k in b for k in ["rate limit", "quota", "throttl", "tier"]):
+            blocker_buckets["Rate Limits / Quotas"] += 1
+
+    blocker_colors = ["#dc2626","#7c3aed","#d97706","#0f172a","#2563eb","#0891b2","#64748b"]
+    blocker_bars = ""
+    max_blocker = max(blocker_buckets.values()) if any(blocker_buckets.values()) else 1
+    for i, (label, count) in enumerate(sorted(blocker_buckets.items(), key=lambda x: x[1], reverse=True)):
+        if count > 0:
+            blocker_bars += hbar(label, count, total_apps, blocker_colors[i % len(blocker_colors)], max_blocker)
+
+    # ── Mistakes table ───────────────────────────────────────────────────────
     mistakes_rows = ""
     if metrics and "mistakes_fixes" in metrics:
         for m in metrics["mistakes_fixes"]:
             mistakes_rows += f"""
             <tr>
-                <td style="color: #2563eb; font-weight: 500;">#{m['id']} {m['app_name']}</td>
-                <td style="font-size: 0.85rem; color: #475569;">{m['category']}</td>
-                <td style="font-family: monospace; font-size: 0.85rem; color: #7c3aed;">{m['auth_method']}</td>
-                <td style="color: #047857; font-size: 0.9rem; font-weight: 500;">{m['correction']}</td>
-            </tr>
-            """
+                <td><span class="badge-id">#{m['id']}</span> {m['app_name']}</td>
+                <td style="font-size:0.8rem;color:#475569;">{m['category']}</td>
+                <td style="font-family:monospace;font-size:0.8rem;color:#7c3aed;">{m['auth_method']}</td>
+                <td style="color:#047857;font-size:0.85rem;">{m['correction']}</td>
+            </tr>"""
 
-    # Complete HTML content
+    # ── JS data ──────────────────────────────────────────────────────────────
+    db_serializable = [
+        {**app,
+         "confidence_level": app.get("confidence", "Unknown"),
+         "main_blocker": app.get("main_blocker") or "—"}
+        for app in db
+    ]
+    db_js = json.dumps(db_serializable, ensure_ascii=False)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # HTML
+    # ═══════════════════════════════════════════════════════════════════════
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Composio AI Product Ops Take-Home: 100 App Research Case Study</title>
-    <!-- Google Fonts -->
+    <title>Composio AI Product Ops – 100-App API Research Case Study</title>
+    <meta name="description" content="Interactive case study: researched 100 apps for Composio integration buildability, authentication methods, MCP support, and self-serve credential access.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ── Reset & Base ───────────────────────────────── */
+        *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
         :root {{
-            --bg-color: #f2faf6;
-            --card-bg: #ffffff;
-            --border-color: #d1ebd9;
-            --text-primary: #1e293b;
-            --text-secondary: #475569;
-            --accent-primary: #059669;
-            --accent-glow: rgba(5, 150, 105, 0.08);
-            --accent-blue: #2563eb;
-            --accent-green: #059669;
-            --accent-orange: #d97706;
-            --accent-red: #dc2626;
-            --font-display: 'Outfit', sans-serif;
-            --font-body: 'Inter', sans-serif;
+            --bg:         #f0faf5;
+            --card-bg:    #ffffff;
+            --border:     #c8e6d4;
+            --text:       #1e293b;
+            --muted:      #64748b;
+            --accent:     #059669;
+            --accent-2:   #2563eb;
+            --accent-3:   #7c3aed;
+            --accent-4:   #d97706;
+            --accent-5:   #dc2626;
+            --header-from:#d1f0e3;
+            --header-to:  #f0faf5;
+            --shadow:     0 1px 4px rgba(5,150,105,0.08), 0 4px 24px rgba(5,150,105,0.06);
         }}
-
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-
+        html {{ scroll-behavior: smooth; }}
         body {{
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            font-family: var(--font-body);
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 15px;
             line-height: 1.6;
-            padding-bottom: 80px;
+        }}
+        a {{ color: var(--accent); text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
+
+        /* ── Layout ─────────────────────────────────────── */
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 0 24px; }}
+        section {{ margin-bottom: 48px; }}
+        h2.section-title {{
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+        h2.section-title::after {{
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
         }}
 
-        .container {{
-            max-width: 1440px;
-            margin: 0 auto;
-            padding: 20px 40px;
+        /* ── Card ───────────────────────────────────────── */
+        .card {{
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: var(--shadow);
         }}
 
-        /* Header Styles */
+        /* ── Hero ───────────────────────────────────────── */
         header {{
-            background: linear-gradient(135deg, #d3ecd9 0%, #f2faf6 100%);
-            border-bottom: 1px solid var(--border-color);
-            padding: 60px 0 50px 0;
-            margin-bottom: 40px;
+            background: linear-gradient(135deg, var(--header-from) 0%, var(--header-to) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 64px 0 48px;
             position: relative;
             overflow: hidden;
         }}
-
         header::before {{
             content: '';
             position: absolute;
-            top: -50%;
-            left: -20%;
-            width: 800px;
-            height: 800px;
-            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
-            z-index: 0;
+            width: 600px; height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(5,150,105,0.08), transparent 70%);
+            top: -200px; right: -100px;
             pointer-events: none;
         }}
-
-        .header-content {{
-            position: relative;
-            z-index: 1;
-        }}
-
-        .badge {{
-            display: inline-block;
-            background: rgba(5, 150, 105, 0.12);
-            border: 1px solid var(--accent-primary);
+        .hero-badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(5,150,105,0.12);
             color: #065f46;
-            padding: 6px 14px;
-            border-radius: 50px;
-            font-size: 0.85rem;
+            font-size: 0.78rem;
             font-weight: 600;
-            letter-spacing: 0.05em;
+            padding: 4px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(5,150,105,0.2);
+            margin-bottom: 16px;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
-            margin-bottom: 20px;
-            font-family: var(--font-display);
         }}
-
-        h1 {{
-            font-family: var(--font-display);
-            font-size: 2.8rem;
+        header h1 {{
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
             font-weight: 800;
+            color: var(--text);
             line-height: 1.2;
-            margin-bottom: 15px;
-            background: linear-gradient(to right, #047857 40%, #0d9488 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            margin-bottom: 14px;
+            max-width: 780px;
         }}
-
-        .subtitle {{
-            font-size: 1.15rem;
-            color: var(--text-secondary);
-            max-width: 800px;
-            font-weight: 400;
+        header h1 span {{ color: var(--accent); }}
+        .hero-sub {{
+            font-size: 1rem;
+            color: var(--muted);
+            max-width: 640px;
+            margin-bottom: 28px;
         }}
-
-        /* Grid Layout */
-        .dashboard-grid {{
+        .hero-findings {{
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 40px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            max-width: 860px;
         }}
+        .hero-finding {{
+            background: white;
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            color: var(--text);
+        }}
+        .hero-finding strong {{ color: var(--accent); display: block; font-size: 1rem; }}
 
-        .stat-card {{
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+        /* ── Metric Cards ────────────────────────────────── */
+        .metrics-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }}
+        .metric-card {{
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: var(--shadow);
             position: relative;
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.15s, box-shadow 0.15s;
         }}
-
-        .stat-card:hover {{
+        .metric-card:hover {{
             transform: translateY(-2px);
-            border-color: #a7f3d0;
-            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
+            box-shadow: 0 8px 32px rgba(5,150,105,0.12);
         }}
-
-        .stat-card::after {{
+        .metric-card::before {{
             content: '';
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
+            bottom: 0; left: 0; right: 0;
+            height: 3px;
         }}
-
-        .stat-card.easy-wins::after {{ background-color: var(--accent-green); }}
-        .stat-card.mcp::after {{ background-color: var(--accent-blue); }}
-        .stat-card.accuracy::after {{ background-color: var(--accent-primary); }}
-        .stat-card.gated::after {{ background-color: var(--accent-orange); }}
-
-        .stat-title {{
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 10px;
+        .mc-green::before  {{ background: #059669; }}
+        .mc-blue::before   {{ background: #2563eb; }}
+        .mc-purple::before {{ background: #7c3aed; }}
+        .mc-orange::before {{ background: #d97706; }}
+        .mc-red::before    {{ background: #dc2626; }}
+        .mc-teal::before   {{ background: #0891b2; }}
+        .metric-icon {{ font-size: 1.5rem; margin-bottom: 8px; }}
+        .metric-val {{
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 4px;
         }}
+        .mc-green .metric-val  {{ color: #059669; }}
+        .mc-blue .metric-val   {{ color: #2563eb; }}
+        .mc-purple .metric-val {{ color: #7c3aed; }}
+        .mc-orange .metric-val {{ color: #d97706; }}
+        .mc-red .metric-val    {{ color: #dc2626; }}
+        .mc-teal .metric-val   {{ color: #0891b2; }}
+        .metric-label {{ font-size: 0.78rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }}
+        .metric-sub {{ font-size: 0.75rem; color: var(--muted); margin-top: 4px; }}
 
-        .stat-value {{
-            font-family: var(--font-display);
-            font-size: 2.2rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-            color: #0f172a;
-        }}
-
-        .stat-desc {{
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }}
-
-        /* Pattern Insights Section */
-        .insights-section {{
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
-        }}
-
-        .card {{
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
-        }}
-
-        .card-title {{
-            font-family: var(--font-display);
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 15px;
-            color: #0f172a;
-        }}
-
-        .bullets-list {{
-            list-style-type: none;
-        }}
-
-        .bullets-list li {{
-            position: relative;
-            padding-left: 30px;
-            margin-bottom: 18px;
-            font-size: 0.95rem;
-            color: var(--text-primary);
-        }}
-
-        .bullets-list li::before {{
-            content: "âœ¦";
-            position: absolute;
-            left: 0;
-            top: 0;
-            color: var(--accent-primary);
-            font-size: 1.1rem;
-        }}
-
-        .bullets-list li strong {{
-            color: #0f172a;
-        }}
-
-        /* Distributions Charts */
-        .charts-container {{
+        /* ── Findings ────────────────────────────────────── */
+        .findings-grid {{
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 25px;
+            gap: 16px;
         }}
-
-        .chart-box {{
-            background: rgba(234, 246, 239, 0.4);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
+        @media (max-width: 700px) {{ .findings-grid {{ grid-template-columns: 1fr; }} }}
+        .finding-item {{
+            border-left: 3px solid var(--accent);
+            padding-left: 14px;
         }}
+        .finding-item h4 {{ font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }}
+        .finding-item p  {{ font-size: 0.83rem; color: var(--muted); line-height: 1.5; }}
 
-        .chart-box-title {{
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: #0f172a;
-            margin-bottom: 15px;
-            font-family: var(--font-display);
+        /* ── Charts ──────────────────────────────────────── */
+        .charts-row {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }}
-
-        .chart-item {{
-            margin-bottom: 12px;
-        }}
-
+        @media (max-width: 800px) {{ .charts-row {{ grid-template-columns: 1fr; }} }}
+        .chart-item {{ margin-bottom: 12px; }}
         .chart-label {{
             display: flex;
             justify-content: space-between;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
+            font-size: 0.82rem;
+            margin-bottom: 5px;
+            color: var(--text);
         }}
-
-        .chart-val {{
-            color: #0f172a;
-            font-weight: 600;
-        }}
-
+        .chart-val {{ font-weight: 600; font-size: 0.82rem; white-space: nowrap; }}
         .chart-bar-bg {{
-            background-color: #e2e8f0;
-            height: 8px;
-            border-radius: 4px;
+            height: 10px;
+            background: #e8f5ef;
+            border-radius: 6px;
             overflow: hidden;
-            width: 100%;
         }}
-
         .chart-bar-fill {{
             height: 100%;
-            border-radius: 4px;
-            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 6px;
+            transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
         }}
-
-        /* Matrix Grid Table */
-        .matrix-container {{
-            overflow-x: auto;
-            margin-top: 15px;
-        }}
-
-        .matrix-table {{
-            width: 100%;
-            border-collapse: collapse;
-            text-align: center;
-        }}
-
-        .matrix-table th, .matrix-table td {{
-            padding: 12px 15px;
-            border: 1px solid var(--border-color);
-            font-size: 0.85rem;
-        }}
-
-        .matrix-table th {{
-            background-color: #d3ecd9;
-            color: #065f46;
-            font-weight: 600;
-            font-family: var(--font-display);
-        }}
-
-        .matrix-table td.cat-cell {{
-            text-align: left;
-            font-weight: 500;
-            color: #0f172a;
-            background-color: #f0fdf4;
-        }}
-
-        .matrix-table td.val-cell {{
-            font-weight: 600;
-        }}
-
-        .val-easy-win {{ color: #047857; background-color: rgba(16, 185, 129, 0.08); }}
-        .val-buildable {{ color: #1d4ed8; background-color: rgba(59, 130, 246, 0.08); }}
-        .val-caveats {{ color: #b45309; background-color: rgba(245, 158, 11, 0.08); }}
-        .val-outreach {{ color: #6d28d9; background-color: rgba(139, 92, 246, 0.08); }}
-        .val-not-buildable {{ color: #b91c1c; background-color: rgba(239, 68, 68, 0.08); }}
-        .val-total {{ font-weight: 600; color: #475569; background-color: rgba(204, 227, 213, 0.2); }}
-
-        /* Research Table Section */
-        .table-section {{
-            margin-bottom: 40px;
-        }}
-
-        .table-controls {{
+        .card-title {{
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text);
+            margin-bottom: 18px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            gap: 20px;
+            gap: 7px;
+        }}
+        .card-title .dot {{
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: inline-block;
         }}
 
-        .search-wrapper {{
-            position: relative;
-            flex-grow: 1;
-        }}
+        /* ── Donut ───────────────────────────────────────── */
+        .donut-wrap {{ display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }}
+        .donut-legend {{ display: flex; flex-direction: column; gap: 10px; }}
+        .donut-legend-row {{ display: flex; align-items: center; gap: 8px; font-size: 0.83rem; }}
+        .donut-dot {{ width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }}
+        .donut-legend-label {{ color: var(--text); flex: 1; }}
+        .donut-legend-val {{ font-weight: 600; font-size: 0.83rem; white-space: nowrap; }}
 
-        .search-input {{
-            width: 100%;
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px 16px;
-            color: var(--text-primary);
-            font-family: var(--font-body);
-            font-size: 0.9rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }}
-
-        .search-input:focus {{
-            border-color: var(--accent-primary);
-        }}
-
-        .filter-wrapper {{
+        /* ── Table ───────────────────────────────────────── */
+        .filters-row {{
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
+            margin-bottom: 16px;
         }}
-
-        .filter-select {{
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
+        .filters-row input, .filters-row select {{
+            flex: 1;
+            min-width: 150px;
+            padding: 9px 14px;
+            background: #f8fdf9;
+            border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 12px 16px;
-            color: var(--text-primary);
-            font-family: var(--font-body);
             font-size: 0.85rem;
-            cursor: pointer;
+            color: var(--text);
             outline: none;
+            transition: border-color 0.15s;
         }}
-
-        .table-container {{
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow-x: auto;
-            max-height: 800px;
-            overflow-y: auto;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
-        }}
-
-        .research-table {{
-            width: 100%;
-            border-collapse: collapse;
+        .filters-row input:focus, .filters-row select:focus {{ border-color: var(--accent); }}
+        .table-wrap {{ overflow-x: auto; max-height: 560px; overflow-y: auto; border-radius: 10px; border: 1px solid var(--border); }}
+        table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
+        thead tr {{ background: #e8f5ef; position: sticky; top: 0; z-index: 2; }}
+        thead th {{
+            padding: 11px 12px;
             text-align: left;
-        }}
-
-        .research-table th {{
-            background-color: #d3ecd9;
-            color: #065f46;
             font-weight: 600;
-            padding: 16px 20px;
-            font-size: 0.85rem;
+            font-size: 0.78rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            border-bottom: 2px solid #a7d0b8;
-            font-family: var(--font-display);
+            letter-spacing: 0.04em;
+            color: #065f46;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
         }}
-
-        .research-table td {{
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.85rem;
-            vertical-align: middle;
-        }}
-
-        .research-table tr:hover {{
-            background-color: rgba(5, 150, 105, 0.03);
-        }}
-
-        .app-name-col {{
-            font-weight: 600;
-            color: #0f172a;
-        }}
-
+        tbody tr {{ border-bottom: 1px solid #f0faf5; transition: background 0.1s; }}
+        tbody tr:hover {{ background: #f5fdf8; }}
+        tbody td {{ padding: 10px 12px; vertical-align: top; }}
+        .app-name {{ font-weight: 600; font-size: 0.84rem; color: var(--text); }}
+        .app-desc {{ font-size: 0.75rem; color: var(--muted); margin-top: 2px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
         .tag {{
             display: inline-block;
-            padding: 3px 10px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }}
-
-        .tag-easy-win {{ background-color: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); }}
-        .tag-buildable {{ background-color: rgba(59, 130, 246, 0.12); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.3); }}
-        .tag-caveats {{ background-color: rgba(245, 158, 11, 0.12); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.3); }}
-        .tag-outreach {{ background-color: rgba(139, 92, 246, 0.12); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.3); }}
-        .tag-not-buildable {{ background-color: rgba(239, 68, 68, 0.12); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.3); }}
-
-        .tag-mcp-official {{ background-color: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); }}
-        .tag-mcp-thirdparty {{ background-color: rgba(59, 130, 246, 0.12); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.3); }}
-        .tag-mcp-no {{ background-color: rgba(71, 85, 105, 0.08); color: #475569; border: 1px solid rgba(0, 0, 0, 0.05); }}
-
-        .tag-self-serve {{ background-color: rgba(16, 185, 129, 0.1); color: #047857; }}
-        .tag-gated {{ background-color: rgba(239, 68, 68, 0.1); color: #b91c1c; }}
-        .tag-mixed {{ background-color: rgba(245, 158, 11, 0.1); color: #b45309; }}
-
-        .ev-link {{
-            color: #2563eb;
-            text-decoration: none;
-            display: inline-block;
-            max-width: 150px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.73rem;
+            font-weight: 500;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            transition: color 0.1s;
         }}
-
-        .ev-link:hover {{
-            color: #1d4ed8;
-            text-decoration: underline;
+        .tag-easy-win   {{ background:#d1fae5;color:#065f46; }}
+        .tag-buildable  {{ background:#dbeafe;color:#1d4ed8; }}
+        .tag-caveats    {{ background:#fef3c7;color:#92400e; }}
+        .tag-outreach   {{ background:#ede9fe;color:#5b21b6; }}
+        .tag-notbuild   {{ background:#fee2e2;color:#991b1b; }}
+        .tag-self       {{ background:#d1fae5;color:#065f46; }}
+        .tag-gated      {{ background:#fee2e2;color:#991b1b; }}
+        .tag-mixed      {{ background:#fef3c7;color:#92400e; }}
+        .tag-mcp-off    {{ background:#d1fae5;color:#065f46; }}
+        .tag-mcp-3p     {{ background:#dbeafe;color:#1d4ed8; }}
+        .tag-mcp-no     {{ background:#f1f5f9;color:#64748b; }}
+        .ev-link {{ font-size: 0.75rem; color: var(--accent-2); word-break: break-all; }}
+        .api-mono {{ font-family: monospace; font-size: 0.78rem; color: var(--accent-3); }}
+        .badge-id {{
+            display: inline-block;
+            background: #e8f5ef;
+            color: var(--accent);
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-right: 4px;
         }}
+        .row-count {{ font-size: 0.78rem; color: var(--muted); margin-top: 8px; }}
 
-        .notes-text {{
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            max-width: 250px;
-        }}
-
-        /* Process & Verification section */
-        .process-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
-        }}
-
-        .workflow-step {{
+        /* ── Workflow ─────────────────────────────────────── */
+        .flow-wrap {{
             display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0;
+            justify-content: center;
+        }}
+        .flow-node {{
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 18px;
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text);
+            min-width: 110px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }}
+        .flow-node .flow-icon {{ font-size: 1.4rem; display: block; margin-bottom: 4px; }}
+        .flow-arrow {{
+            font-size: 1.3rem;
+            color: var(--accent);
+            padding: 0 6px;
+            flex-shrink: 0;
         }}
 
-        .step-num {{
-            background-color: var(--accent-primary);
-            color: #ffffff;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
+        /* ── Verification ─────────────────────────────────── */
+        .verif-stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }}
+        .verif-stat {{
+            background: #f8fdf9;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            text-align: center;
+        }}
+        .verif-stat-val {{
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--accent);
+        }}
+        .verif-stat-val.red {{ color: var(--accent-5); }}
+        .verif-stat-label {{ font-size: 0.75rem; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }}
+        .mistakes-table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
+        .mistakes-table th {{
+            background: #e8f5ef;
+            color: #065f46;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 9px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }}
+        .mistakes-table td {{ padding: 10px 12px; border-bottom: 1px solid #f0faf5; vertical-align: top; }}
+        .mistakes-table tr:hover {{ background: #f5fdf8; }}
+
+        /* ── Links section ────────────────────────────────── */
+        /* ── Links strip (single horizontal row) ────────── */
+        .links-strip {{
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+        }}
+        .link-card {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px 14px 18px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+            text-decoration: none !important;
+            color: var(--text) !important;
+            position: relative;
+            overflow: hidden;
+        }}
+        .link-card::after {{
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), #34d399);
+            opacity: 0;
+            transition: opacity 0.18s;
+        }}
+        .link-card:hover {{
+            transform: translateY(-4px);
+            box-shadow: 0 10px 36px rgba(5,150,105,0.16);
+            border-color: var(--accent);
+            text-decoration: none !important;
+        }}
+        .link-card:hover::after {{ opacity: 1; }}
+        .lc-icon-wrap {{
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 1.5rem;
             flex-shrink: 0;
-            margin-top: 3px;
+        }}
+        .link-card .lc-title {{
+            font-weight: 700;
+            font-size: 0.82rem;
+            color: var(--text);
+            line-height: 1.3;
+        }}
+        .link-card .lc-sub {{
+            font-size: 0.72rem;
+            color: var(--muted);
+            line-height: 1.4;
         }}
 
-        .step-body h4 {{
-            color: #0f172a;
-            font-size: 0.95rem;
-            margin-bottom: 5px;
-        }}
-
-        .step-body p {{
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }}
-
-        /* Table styling for mistakes */
-        .verif-mistakes-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            text-align: left;
-        }}
-
-        .verif-mistakes-table th, .verif-mistakes-table td {{
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border-color);
+        /* ── Footer ──────────────────────────────────────── */
+        footer {{
+            text-align: center;
+            padding: 32px 24px;
             font-size: 0.8rem;
-        }}
-
-        .verif-mistakes-table th {{
-            color: #0f172a;
-            font-weight: 600;
-            background-color: #d3ecd9;
-        }}
-
-        /* Links row */
-        .links-row {{
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            margin-top: 60px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 30px;
-        }}
-
-        .btn-link {{
-            background-color: #d3ecd9;
-            border: 1px solid var(--border-color);
-            color: #065f46;
-            padding: 10px 20px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 600;
-            transition: background-color 0.2s, border-color 0.2s;
-        }}
-
-        .btn-link:hover {{
-            background-color: #047857;
-            border-color: #047857;
-            color: #ffffff;
-        }}
-
-        /* Tooltip */
-        .desc-text {{
-            max-width: 200px;
-            font-size: 0.85rem;
-            color: var(--text-primary);
+            color: var(--muted);
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
         }}
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="container">
-            <div class="header-content">
-                <span class="badge">Research Case Study</span>
-                <h1>Integrations Suite: 100 Apps Audited for AI Agent Suitability</h1>
-                <p class="subtitle">An automated, verified mapping of SaaS APIs, Model Context Protocol (MCP) servers, authentication models, and buildability metrics for Composio toolkits.</p>
-            </div>
-        </div>
-    </header>
-
+<!-- ══════════════════════════════════════════════════════
+     HERO
+══════════════════════════════════════════════════════════ -->
+<header>
     <div class="container">
-
-        <!-- Stat Grid -->
-        <div class="dashboard-grid">
-            <div class="stat-card easy-wins">
-                <div>
-                    <div class="stat-title">Easy Win Integrations</div>
-                    <div class="stat-value">{buildability_counts.get('Easy win', 0)}</div>
-                </div>
-                <div class="stat-desc">Self-serve credentials, public developer guides, and clean REST APIs.</div>
+        <div class="hero-badge">🔬 Composio AI Product Ops · Take-Home Assignment</div>
+        <h1>100-App API Research<br><span>Integration Buildability Case Study</span></h1>
+        <p class="hero-sub">
+            A systematic research pipeline to identify which apps Composio can integrate with autonomously
+            — covering auth methods, self-serve access, MCP readiness, and buildability verdicts.
+        </p>
+        <div class="hero-findings">
+            <div class="hero-finding">
+                <strong>{buildability_counts.get('Easy win', 0)} Easy Wins</strong>
+                Self-serve credentials, public REST APIs, no approval needed
             </div>
-            <div class="stat-card mcp">
-                <div>
-                    <div class="stat-title">MCP-Native Servers</div>
-                    <div class="stat-value">{mcp_counts.get('Official MCP', 0) + mcp_counts.get('Third-party MCP', 0)}</div>
-                </div>
-                <div class="stat-desc">{mcp_counts.get('Official MCP', 0)} official servers, {mcp_counts.get('Third-party MCP', 0)} community servers.</div>
+            <div class="hero-finding">
+                <strong>{mcp_counts.get('Official MCP', 0)} Official MCP Servers</strong>
+                Plug-and-play agent connectivity via the Model Context Protocol
             </div>
-            <div class="stat-card gated">
-                <div>
-                    <div class="stat-title">Outreach / Gated APIs</div>
-                    <div class="stat-value">{buildability_counts.get('Outreach needed', 0) + buildability_counts.get('Not currently buildable', 0)}</div>
-                </div>
-                <div class="stat-desc">Requires enterprise partnerships, custom pricing, or lacks public API surface.</div>
+            <div class="hero-finding">
+                <strong>{self_serve_counts.get('self-serve', 0)} Self-Serve APIs</strong>
+                Instant developer key access without enterprise contracts
             </div>
-            <div class="stat-card accuracy">
-                <div>
-                    <div class="stat-title">Sample Accuracy</div>
-                    <div class="stat-value">{metrics.get('final_accuracy', 100.0)}%</div>
-                </div>
-                <div class="stat-desc">Calculated on the 20-app verification sample after corrections ({metrics.get('first_pass_accuracy', 40.0)}% first-pass).</div>
+            <div class="hero-finding">
+                <strong>{conf_counts.get('High', 0)} High-Confidence Records</strong>
+                Verified directly against official developer documentation
             </div>
         </div>
-
-        <!-- Pattern Dashboard and Summary -->
-        <div class="insights-section">
-            <div class="card">
-                <div class="card-title">Executive Summary & Major Findings</div>
-                <ul class="bullets-list">
-                    <li><strong>Model Context Protocol (MCP) Momentum:</strong> MCP support is becoming a useful routing signal. The dataset marks <strong>{mcp_counts.get('Official MCP', 0)} official MCP signals</strong> and <strong>{mcp_counts.get('Third-party MCP', 0)} third-party/community MCP signals</strong>, with official labels reserved for company or project-controlled evidence.</li>
-                    <li><strong>Authentication Landscape:</strong> <strong>OAuth 2.0</strong> is the dominant standard for CRM, Messaging, and Ads tools, requiring token exchanges. Developers can leverage self-serve <strong>API Keys</strong> or <strong>Bearer Tokens</strong> for fast scripting on {auth_counts.get('API Key / Token', 0) + auth_counts.get('Bearer Token', 0)} of the researched platforms. <strong>{conf_counts.get('High', 0)} apps</strong> carry High confidence, with <strong>{conf_counts.get('Medium', 0)}</strong> at Medium confidence.</li>
-                    <li><strong>Low-Hanging Fruit vs. Gatekeepers:</strong> We identified <strong>{buildability_counts.get('Easy win', 0)} Easy Wins</strong>. Conversely, fintech platforms (e.g., <em>Paygent</em>, <em>PitchBook</em>) and enterprise ads platforms are heavily gated, demanding NDA requests or active sales contracts.</li>
-                    <li><strong>Process Optimization:</strong> Refining evidence links, MCP labels, and confidence calibrations corrected <strong>12 discrepancies</strong> in the 20-app audit check, reaching <strong>100%</strong> correctness on that checked sample after corrections.</li>
-                </ul>
-            </div>
-            <div class="card">
-                <div class="card-title">Buildability Status</div>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    {buildability_bars}
-                </div>
-            </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 40px;">
-            <div class="card">
-                <div class="card-title">MCP Distribution</div>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    {mcp_bars}
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-title">Primary Auth Distribution</div>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    {auth_bars}
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-title">Credential Access Model</div>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    {self_serve_bars}
-                </div>
-            </div>
-        </div>
-
-        <!-- Matrix Card -->
-        <div class="card" style="margin-bottom: 40px;">
-            <div class="card-title">Category Buildability Matrix</div>
-            <div class="matrix-container">
-                <table class="matrix-table">
-                    <thead>
-                        <tr>
-                            <th>Category</th>
-                            <th>Easy win</th>
-                            <th>Buildable</th>
-                            <th>Buildable with caveats</th>
-                            <th>Outreach needed</th>
-                            <th>Not currently buildable</th>
-                            <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {matrix_rows_html}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Interactive Research Table -->
-        <div class="table-section">
-            <h2 style="font-family: var(--font-display); font-size: 1.8rem; margin-bottom: 15px;">Comprehensive Research Database (100 Rows)</h2>
-            <div class="table-controls">
-                <div class="search-wrapper">
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search by app name, category, blocker, descriptions...">
-                </div>
-                <div class="filter-wrapper">
-                    <select id="filterCategory" class="filter-select">
-                        <option value="">All Categories</option>
-                        {"".join(f'<option value="{c}">{c}</option>' for c in categories)}
-                    </select>
-                    <select id="filterBuild" class="filter-select">
-                        <option value="">All Buildability Statuses</option>
-                        <option value="Easy win">Easy win</option>
-                        <option value="Buildable">Buildable</option>
-                        <option value="Buildable with caveats">Buildable with caveats</option>
-                        <option value="Outreach needed">Outreach needed</option>
-                        <option value="Not currently buildable">Not currently buildable</option>
-                    </select>
-                    <select id="filterMCP" class="filter-select">
-                        <option value="">All MCP Statuses</option>
-                        <option value="Official MCP">Official MCP</option>
-                        <option value="Third-party MCP">Third-party MCP</option>
-                        <option value="No">No</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <table class="research-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">ID</th>
-                            <th>App Name</th>
-                            <th>Category</th>
-                            <th>Auth Method</th>
-                            <th>Self-Serve</th>
-                            <th>MCP Support</th>
-                            <th>Verdict</th>
-                            <th>Evidence & docs</th>
-                            <th>Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <!-- JS populated -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Workflow & Verification -->
-        <div class="process-grid">
-            <div class="card">
-                <div class="card-title">Research Agent Workflow</div>
-                <div class="workflow-step">
-                    <div class="step-num">1</div>
-                    <div class="step-body">
-                        <h4>Seed Initialization</h4>
-                        <p>Loaded seed list of 100 apps with category labels and domain starting endpoints into structured JSON database.</p>
-                    </div>
-                </div>
-                <div class="workflow-step">
-                    <div class="step-num">2</div>
-                    <div class="step-body">
-                        <h4>Programmatic Link Auditing</h4>
-                        <p>Developed multithreaded link check scripts in Python to validate and ping response codes of API references, ensuring all evidence links are live.</p>
-                    </div>
-                </div>
-                <div class="workflow-step">
-                    <div class="step-num">3</div>
-                    <div class="step-body">
-                        <h4>Deep Feature Research</h4>
-                        <p>Discovered and refined details on API surfaces (REST, GraphQL, CLI), credentials generation, and native/third-party Model Context Protocol (MCP) servers.</p>
-                    </div>
-                </div>
-                <div class="workflow-step">
-                    <div class="step-num">4</div>
-                    <div class="step-body">
-                        <h4>Calibration Loop</h4>
-                        <p>Adjusted confidence metadata to 'Medium' or 'High' only when official developer guides directly confirm the authentication headers and sandbox schemas.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-title">Quality Assurance & Verification</div>
-                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">
-                    We randomly sampled 20 apps from the database and manually verified the fields. Discrepancies were logged and programmatically applied back to refine the master datasets.
-                </p>
-                <div style="overflow-x: auto; max-height: 280px; overflow-y: auto;">
-                    <table class="verif-mistakes-table">
-                        <thead>
-                            <tr>
-                                <th>App Name</th>
-                                <th>Category</th>
-                                <th>Auth Method</th>
-                                <th>Discrepancy Correction Applied</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {mistakes_rows}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Links Row -->
-        <div class="links-row">
-            <a href="https://github.com/Prasanth0544/composio-product-ops-assignment" target="_blank" class="btn-link">Source Repository</a>
-            <a href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/data/apps_research.json" target="_blank" class="btn-link">Database (JSON)</a>
-            <a href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/data/apps_research.csv" target="_blank" class="btn-link">Database (CSV)</a>
-            <a href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/scripts/research_agent.py" target="_blank" class="btn-link">Research Agent Script</a>
-        </div>
-
     </div>
+</header>
 
-    <!-- Client-side Interactive Logic -->
-    <script>
-        const appDatabase = {db_js};
+<div class="container" style="padding-top:48px;">
 
-        const searchInput = document.getElementById('searchInput');
-        const filterCategory = document.getElementById('filterCategory');
-        const filterBuild = document.getElementById('filterBuild');
-        const filterMCP = document.getElementById('filterMCP');
-        const tableBody = document.getElementById('tableBody');
+<!-- ══════════════════════════════════════════════════════
+     KEY METRIC CARDS
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">📊 Key Metrics</h2>
+    <div class="metrics-grid">
+        <div class="metric-card mc-green">
+            <div class="metric-icon">🗂️</div>
+            <div class="metric-val">{total_apps}</div>
+            <div class="metric-label">Apps Researched</div>
+            <div class="metric-sub">Across 10 categories</div>
+        </div>
+        <div class="metric-card mc-green">
+            <div class="metric-icon">⚡</div>
+            <div class="metric-val">{buildability_counts.get('Easy win', 0)}</div>
+            <div class="metric-label">Easy Win Integrations</div>
+            <div class="metric-sub">+ {buildability_counts.get('Buildable', 0)} straightforward builds</div>
+        </div>
+        <div class="metric-card mc-blue">
+            <div class="metric-icon">🔓</div>
+            <div class="metric-val">{self_serve_counts.get('self-serve', 0)}</div>
+            <div class="metric-label">Self-Serve APIs</div>
+            <div class="metric-sub">No approval required</div>
+        </div>
+        <div class="metric-card mc-orange">
+            <div class="metric-icon">🔒</div>
+            <div class="metric-val">{self_serve_counts.get('gated', 0) + self_serve_counts.get('mixed', 0)}</div>
+            <div class="metric-label">Gated or Mixed Access</div>
+            <div class="metric-sub">{self_serve_counts.get('gated', 0)} gated · {self_serve_counts.get('mixed', 0)} mixed</div>
+        </div>
+        <div class="metric-card mc-purple">
+            <div class="metric-icon">🔑</div>
+            <div class="metric-val">{auth_counts.get('OAuth 2.0', 0) + auth_counts.get('API Key / Token', 0)}</div>
+            <div class="metric-label">OAuth2 / API Key</div>
+            <div class="metric-sub">{auth_counts.get('OAuth 2.0', 0)} OAuth · {auth_counts.get('API Key / Token', 0)} key/token</div>
+        </div>
+        <div class="metric-card mc-teal">
+            <div class="metric-icon">🤖</div>
+            <div class="metric-val">{mcp_counts.get('Official MCP', 0) + mcp_counts.get('Third-party MCP', 0)}</div>
+            <div class="metric-label">MCP Signals</div>
+            <div class="metric-sub">{mcp_counts.get('Official MCP', 0)} official · {mcp_counts.get('Third-party MCP', 0)} community</div>
+        </div>
+    </div>
+</section>
 
-        function getVerdictClass(v) {{
-            if (v === 'Easy win') return 'tag-easy-win';
-            if (v === 'Buildable') return 'tag-buildable';
-            if (v === 'Buildable with caveats') return 'tag-caveats';
-            if (v === 'Outreach needed') return 'tag-outreach';
-            return 'tag-not-buildable';
+<!-- ══════════════════════════════════════════════════════
+     EXECUTIVE FINDINGS
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🔍 Executive Findings</h2>
+    <div class="card">
+        <div class="findings-grid">
+            <div class="finding-item">
+                <h4>⚡ MCP Momentum Is Accelerating</h4>
+                <p>
+                    <strong>{mcp_counts.get('Official MCP', 0)}</strong> platforms now offer <strong>official hosted MCP servers</strong>
+                    — including Salesforce, Shopify, GitHub, Twilio, and Higgsfield — enabling direct plug-and-play agent connectivity.
+                    An additional <strong>{mcp_counts.get('Third-party MCP', 0)}</strong> community-maintained servers extend coverage further.
+                </p>
+            </div>
+            <div class="finding-item">
+                <h4>🔑 OAuth 2.0 Dominates Auth</h4>
+                <p>
+                    <strong>OAuth 2.0</strong> is the primary auth standard across CRM, messaging, and ads platforms, with
+                    <strong>{auth_counts.get('OAuth 2.0', 0)}</strong> apps requiring it. Another
+                    <strong>{auth_counts.get('API Key / Token', 0)}</strong> use simple API key or token-based access — enabling fast scripting with minimal setup.
+                </p>
+            </div>
+            <div class="finding-item">
+                <h4>⚡ Majority Are Immediately Buildable</h4>
+                <p>
+                    <strong>{buildability_counts.get('Easy win', 0) + buildability_counts.get('Buildable', 0)}</strong> apps are directly buildable with Composio
+                    (<em>Easy win</em> or <em>Buildable</em>). Only
+                    <strong>{buildability_counts.get('Outreach needed', 0) + buildability_counts.get('Not currently buildable', 0)}</strong>
+                    require enterprise partnerships or lack a public API entirely.
+                </p>
+            </div>
+            <div class="finding-item">
+                <h4>📊 High Research Confidence</h4>
+                <p>
+                    <strong>{conf_counts.get('High', 0)}</strong> apps carry <em>High</em> confidence — evidence links verified against official developer portals,
+                    API references, or SDKs. <strong>{conf_counts.get('Medium', 0)}</strong> apps are <em>Medium</em> confidence, typically
+                    requiring outreach or additional investigation. Zero apps remain at Low confidence.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     AUTH + SELF-SERVE CHARTS ROW
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🔐 Authentication &amp; Access Model</h2>
+    <div class="charts-row">
+        <div class="card">
+            <div class="card-title"><span class="dot"></span> Authentication Distribution</div>
+            {auth_bars}
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="dot" style="background:#059669;"></span> Self-Serve vs Gated Access</div>
+            {donut_html}
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     BUILDABILITY BY CATEGORY
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🏗️ Buildability by Category</h2>
+    <div class="card">
+        <div class="card-title"><span class="dot"></span> Apps Buildable Per Category (Easy win + Buildable + Buildable with caveats / 10)</div>
+        {cat_build_bars}
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     TOP INTEGRATION BLOCKERS
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🚧 Top Integration Blockers</h2>
+    <div class="card">
+        <div class="card-title"><span class="dot" style="background:#dc2626;"></span> Most Common Blockers Across {total_apps} Apps</div>
+        {blocker_bars if blocker_bars else '<p style="color:#64748b;font-size:0.85rem;">No blockers categorized.</p>'}
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     100-APP RESEARCH TABLE
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">📋 100-App Research Database</h2>
+    <div class="card" style="padding:20px;">
+        <div class="filters-row">
+            <input type="text" id="searchInput" placeholder="🔍  Search app name, auth, category, description…">
+            <select id="filterCategory">
+                <option value="">All Categories</option>
+                {''.join(f'<option value="{c}">{c}</option>' for c in categories)}
+            </select>
+            <select id="filterBuild">
+                <option value="">All Buildability</option>
+                <option value="Easy win">Easy win</option>
+                <option value="Buildable">Buildable</option>
+                <option value="Buildable with caveats">Buildable with caveats</option>
+                <option value="Outreach needed">Outreach needed</option>
+                <option value="Not currently buildable">Not currently buildable</option>
+            </select>
+            <select id="filterSS">
+                <option value="">All Access</option>
+                <option value="self-serve">Self-serve</option>
+                <option value="mixed">Mixed</option>
+                <option value="gated">Gated</option>
+            </select>
+            <select id="filterMCP">
+                <option value="">All MCP</option>
+                <option value="Official MCP">Official MCP</option>
+                <option value="Third-party MCP">Third-party MCP</option>
+                <option value="No">No MCP</option>
+            </select>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>App</th>
+                        <th>Category</th>
+                        <th>Auth Method</th>
+                        <th>Self-Serve</th>
+                        <th>API Surface</th>
+                        <th>MCP</th>
+                        <th>Buildability</th>
+                        <th>Evidence</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div class="row-count" id="rowCount"></div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     AGENT WORKFLOW
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🤖 Agent Research Workflow</h2>
+    <div class="card">
+        <div class="flow-wrap">
+            <div class="flow-node"><span class="flow-icon">📋</span>100 Apps<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">Seed CSV</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node"><span class="flow-icon">🤖</span>Research Agent<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">Python CLI</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node"><span class="flow-icon">🔗</span>Official Docs<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">DDG Search</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node"><span class="flow-icon">⛏️</span>Extraction<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">15 Fields</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node"><span class="flow-icon">✅</span>Verification<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">20-App QA</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node"><span class="flow-icon">💾</span>Final Dataset<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">JSON + CSV</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node" style="border-color:var(--accent);"><span class="flow-icon">📊</span>HTML Case Study<br><span style="font-weight:400;color:#64748b;font-size:0.75rem;">This Page</span></div>
+        </div>
+        <p style="margin-top:20px;font-size:0.82rem;color:var(--muted);max-width:700px;">
+            The <strong>research_agent.py</strong> CLI automates link validation (multithreaded ping across all 100 docs URLs),
+            field updates, and DuckDuckGo search loops to enrich evidence. The <strong>verify_results.py</strong> script
+            cross-checks a 20-app random sample, computes accuracy metrics, and logs all corrections.
+            Finally, <strong>build_case_study.py</strong> compiles datasets into this interactive HTML dashboard.
+        </p>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     VERIFICATION RESULTS
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🔬 Verification &amp; QA Results</h2>
+    <div class="card">
+        <div class="verif-stats">
+            <div class="verif-stat">
+                <div class="verif-stat-val">{metrics.get('sample_size', 20)}</div>
+                <div class="verif-stat-label">Sample Size</div>
+            </div>
+            <div class="verif-stat">
+                <div class="verif-stat-val red">{metrics.get('first_pass_correct', 8)}</div>
+                <div class="verif-stat-label">First-Pass Correct</div>
+            </div>
+            <div class="verif-stat">
+                <div class="verif-stat-val red">{metrics.get('first_pass_accuracy', 40.0)}%</div>
+                <div class="verif-stat-label">First-Pass Accuracy</div>
+            </div>
+            <div class="verif-stat">
+                <div class="verif-stat-val">{metrics.get('final_correct', 20)}</div>
+                <div class="verif-stat-label">Final Correct</div>
+            </div>
+            <div class="verif-stat">
+                <div class="verif-stat-val">{metrics.get('final_accuracy', 100.0)}%</div>
+                <div class="verif-stat-label">Final Accuracy</div>
+            </div>
+            <div class="verif-stat">
+                <div class="verif-stat-val red">{len(metrics.get('mistakes_fixes', []))}</div>
+                <div class="verif-stat-label">Corrections Made</div>
+            </div>
+        </div>
+        <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border);">
+            <table class="mistakes-table">
+                <thead>
+                    <tr>
+                        <th>App</th>
+                        <th>Category</th>
+                        <th>Auth</th>
+                        <th>Correction Applied</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {mistakes_rows if mistakes_rows else '<tr><td colspan="4" style="padding:16px;color:#64748b;text-align:center;">No mistakes logged</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     REPOSITORY + DEMO LINKS
+══════════════════════════════════════════════════════════ -->
+<section>
+    <h2 class="section-title">🔗 Repository &amp; Resources</h2>
+    <div class="links-strip">
+        <a class="link-card" href="https://github.com/Prasanth0544/composio-product-ops-assignment" target="_blank">
+            <div class="lc-icon-wrap" style="background:#f0fdf4;">🐙</div>
+            <span class="lc-title">GitHub<br>Repository</span>
+            <span class="lc-sub">Source code, scripts &amp; data</span>
+        </a>
+        <a class="link-card" href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/data/apps_research.json" target="_blank">
+            <div class="lc-icon-wrap" style="background:#eff6ff;">📦</div>
+            <span class="lc-title">Database<br>(JSON)</span>
+            <span class="lc-sub">100 apps · 16 fields</span>
+        </a>
+        <a class="link-card" href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/data/apps_research.csv" target="_blank">
+            <div class="lc-icon-wrap" style="background:#faf5ff;">📊</div>
+            <span class="lc-title">Database<br>(CSV)</span>
+            <span class="lc-sub">Spreadsheet-ready format</span>
+        </a>
+        <a class="link-card" href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/scripts/research_agent.py" target="_blank">
+            <div class="lc-icon-wrap" style="background:#fff7ed;">🤖</div>
+            <span class="lc-title">Research<br>Agent</span>
+            <span class="lc-sub">CLI · audit · search</span>
+        </a>
+        <a class="link-card" href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/README.md" target="_blank">
+            <div class="lc-icon-wrap" style="background:#fdf2f8;">📖</div>
+            <span class="lc-title">README &amp;<br>Setup Guide</span>
+            <span class="lc-sub">How to run locally</span>
+        </a>
+        <a class="link-card" href="https://github.com/Prasanth0544/composio-product-ops-assignment/blob/main/work_done.md" target="_blank">
+            <div class="lc-icon-wrap" style="background:#f0fdf4;">✅</div>
+            <span class="lc-title">Work<br>Summary</span>
+            <span class="lc-sub">All changes documented</span>
+        </a>
+    </div>
+</section>
+
+</div><!-- /container -->
+
+<footer>
+    Built with Python · Composio AI Product Ops Take-Home Assignment &nbsp;·&nbsp;
+    <a href="https://github.com/Prasanth0544/composio-product-ops-assignment">github.com/Prasanth0544</a>
+</footer>
+
+<!-- ══════════════════════════════════════════════════════
+     CLIENT-SIDE INTERACTIVE LOGIC
+══════════════════════════════════════════════════════════ -->
+<script>
+    const appDatabase = {db_js};
+
+    const searchInput    = document.getElementById('searchInput');
+    const filterCategory = document.getElementById('filterCategory');
+    const filterBuild    = document.getElementById('filterBuild');
+    const filterSS       = document.getElementById('filterSS');
+    const filterMCP      = document.getElementById('filterMCP');
+    const tableBody      = document.getElementById('tableBody');
+    const rowCount       = document.getElementById('rowCount');
+
+    function getVerdictClass(v) {{
+        if (v === 'Easy win')                 return 'tag-easy-win';
+        if (v === 'Buildable')                return 'tag-buildable';
+        if (v === 'Buildable with caveats')   return 'tag-caveats';
+        if (v === 'Outreach needed')          return 'tag-outreach';
+        if (v === 'Not currently buildable')  return 'tag-notbuild';
+        return '';
+    }}
+
+    function getMcpClass(v) {{
+        if (v === 'Official MCP')     return 'tag-mcp-off';
+        if (v === 'Third-party MCP')  return 'tag-mcp-3p';
+        return 'tag-mcp-no';
+    }}
+
+    function getSSClass(v) {{
+        if (v === 'self-serve') return 'tag-self';
+        if (v === 'gated')      return 'tag-gated';
+        if (v === 'mixed')      return 'tag-mixed';
+        return '';
+    }}
+
+    function renderTable() {{
+        const query          = (searchInput.value || '').toLowerCase().trim();
+        const categoryFilter = filterCategory.value;
+        const buildFilter    = filterBuild.value;
+        const ssFilter       = filterSS.value;
+        const mcpFilter      = filterMCP.value;
+
+        const filtered = appDatabase.filter(app => {{
+            const matchesText =
+                (app.app_name          || '').toLowerCase().includes(query) ||
+                (app.category          || '').toLowerCase().includes(query) ||
+                (app.one_line_description || '').toLowerCase().includes(query) ||
+                (app.auth_methods      || '').toLowerCase().includes(query) ||
+                (app.main_blocker      || '').toLowerCase().includes(query) ||
+                (app.api_surface       || '').toLowerCase().includes(query);
+
+            const matchesCat   = !categoryFilter || app.category         === categoryFilter;
+            const matchesBuild = !buildFilter    || app.buildability      === buildFilter;
+            const matchesSS    = !ssFilter       || app.self_serve_status === ssFilter;
+            const matchesMCP   = !mcpFilter      || app.mcp_available     === mcpFilter;
+
+            return matchesText && matchesCat && matchesBuild && matchesSS && matchesMCP;
+        }});
+
+        rowCount.textContent = `Showing ${{filtered.length}} of ${{appDatabase.length}} apps`;
+
+        if (filtered.length === 0) {{
+            tableBody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#64748b;">No matching apps found.</td></tr>';
+            return;
         }}
 
-        function getMcpClass(v) {{
-            if (v === 'Official MCP') return 'tag-mcp-official';
-            if (v === 'Third-party MCP') return 'tag-mcp-thirdparty';
-            return 'tag-mcp-no';
-        }}
+        tableBody.innerHTML = filtered.map(app => {{
+            const docsUrl     = (app.docs_url || app.website || '').split(',')[0].trim();
+            const displayUrl  = docsUrl.replace(/^https?:\\/\\/(www\\.)?/, '').split('/').slice(0,3).join('/');
 
-        function getSelfServeClass(v) {{
-            if (v === 'self-serve') return 'tag-self-serve';
-            if (v === 'gated') return 'tag-gated';
-            return 'tag-mixed';
-        }}
+            return `<tr>
+                <td style="color:#94a3b8;text-align:center;font-size:0.78rem;">${{app.id}}</td>
+                <td>
+                    <div class="app-name">${{app.app_name}}</div>
+                    <div class="app-desc" title="${{app.one_line_description}}">${{app.one_line_description || ''}}</div>
+                </td>
+                <td style="font-size:0.78rem;color:#475569;">${{app.category}}</td>
+                <td class="api-mono">${{app.auth_methods}}</td>
+                <td><span class="tag ${{getSSClass(app.self_serve_status)}}">${{app.self_serve_status}}</span></td>
+                <td style="font-size:0.78rem;color:#475569;max-width:130px;">${{app.api_surface || ''}}</td>
+                <td><span class="tag ${{getMcpClass(app.mcp_available)}}">${{app.mcp_available}}</span></td>
+                <td><span class="tag ${{getVerdictClass(app.buildability)}}">${{app.buildability}}</span></td>
+                <td><a href="${{docsUrl}}" target="_blank" class="ev-link" title="${{docsUrl}}">${{displayUrl}}</a></td>
+            </tr>`;
+        }}).join('');
+    }}
 
-        function renderTable() {{
-            const query = searchInput.value.toLowerCase();
-            const categoryFilter = filterCategory.value;
-            const buildFilter = filterBuild.value;
-            const mcpFilter = filterMCP.value;
+    searchInput.addEventListener('input',     renderTable);
+    filterCategory.addEventListener('change', renderTable);
+    filterBuild.addEventListener('change',    renderTable);
+    filterSS.addEventListener('change',       renderTable);
+    filterMCP.addEventListener('change',      renderTable);
 
-            tableBody.innerHTML = '';
-
-            const filteredApps = appDatabase.filter(app => {{
-                // Text search matching
-                const matchesText = 
-                    app.app_name.toLowerCase().includes(query) ||
-                    app.category.toLowerCase().includes(query) ||
-                    app.one_line_description.toLowerCase().includes(query) ||
-                    app.auth_methods.toLowerCase().includes(query) ||
-                    (app.main_blocker || '').toLowerCase().includes(query);
-
-                // Filter matching
-                const matchesCategory = categoryFilter === '' || app.category === categoryFilter;
-                const matchesBuild = buildFilter === '' || app.buildability === buildFilter;
-                const matchesMCP = mcpFilter === '' || app.mcp_available === mcpFilter;
-
-                return matchesText && matchesCategory && matchesBuild && matchesMCP;
-            }});
-
-            if (filteredApps.length === 0) {{
-                tableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-secondary);">No matching apps found.</td></tr>`;
-                return;
-            }}
-
-            filteredApps.forEach(app => {{
-                const row = document.createElement('tr');
-                
-                // Extract first link of docs url
-                const docs_url = app.docs_url || app.website || '';
-                const display_docs_url = docs_url.replace(/^https?:\/\/(www\.)?/, '');
-                
-                row.innerHTML = `
-                    <td style="color: var(--text-secondary); text-align: center;">${{app.id}}</td>
-                    <td class="app-name-col">${{app.app_name}}</td>
-                    <td style="color: var(--text-secondary);">${{app.category}}</td>
-                    <td style="font-family: monospace; font-size: 0.8rem; color: #7c3aed;">${{app.auth_methods}}</td>
-                    <td><span class="tag ${{getSelfServeClass(app.self_serve_status)}}">${{app.self_serve_status}}</span></td>
-                    <td><span class="tag ${{getMcpClass(app.mcp_available)}}">${{app.mcp_available}}</span></td>
-                    <td><span class="tag ${{getVerdictClass(app.buildability)}}">${{app.buildability}}</span></td>
-                    <td><a href="${{docs_url}}" target="_blank" class="ev-link" title="${{docs_url}}">${{display_docs_url}}</a></td>
-                    <td class="notes-text" title="${{app.verification_notes}}">${{app.verification_notes}}</td>
-                `;
-                tableBody.appendChild(row);
-            }});
-        }}
-
-        // Listeners
-        searchInput.addEventListener('input', renderTable);
-        filterCategory.addEventListener('change', renderTable);
-        filterBuild.addEventListener('change', renderTable);
-        filterMCP.addEventListener('change', renderTable);
-
-        // Initial run
-        renderTable();
-    </script>
+    renderTable();
+</script>
 </body>
 </html>
 """
@@ -1100,8 +1150,9 @@ def build_html():
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, 'w', encoding='utf-8-sig') as f:
         f.write(html_content)
-        
+
     print(f"Generated case study dashboard successfully at: {HTML_PATH}")
+
 
 if __name__ == '__main__':
     build_html()
