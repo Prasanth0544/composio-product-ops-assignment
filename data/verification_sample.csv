@@ -1,0 +1,21 @@
+id,app_name,category,auth_method,mcp_status,docs_url_checked,first_pass_correct,correction_applied,final_status
+1,Salesforce,CRM and Sales,OAuth 2.0 (JWT Bearer flow),Official MCP,https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_api.htm,No,Corrected link from homepage to REST API doc path and updated MCP field to Official MCP,Correct
+2,HubSpot,CRM and Sales,OAuth 2.0 / Private App Access Tokens,No,https://developers.hubspot.com/docs/api/overview,Yes,None,Correct
+5,Twenty,CRM and Sales,OAuth 2.0 / API Keys,No,https://docs.twenty.com/developers/api-keys,Yes,None,Correct
+11,Zendesk,Support and Helpdesk,OAuth 2.0 / API Tokens,No,https://developer.zendesk.com/api-reference/,No,Updated evidence URL to point to api-reference rather than homepage,Correct
+13,Freshdesk,Support and Helpdesk,API Key (Basic Auth),No,https://developers.freshworks.com/docs/api/freshdesk/v2/,No,Corrected API surface from OAuth to Basic Auth Key-only,Correct
+17,Plain,Support and Helpdesk,API Key (Bearer),Third-party MCP,https://docs.plain.com/api-reference/graphql-api,Yes,Updated mcp label to Third-party MCP,Correct
+21,Slack,Communications and Messaging,OAuth 2.0 (Bot Token),Official MCP,https://api.slack.com/methods,No,Updated mcp label from yes to Official MCP and evidence link to Methods endpoint,Correct
+22,Twilio,Communications and Messaging,API Keys (Basic Auth),Official MCP,https://www.twilio.com/docs/usage/api,No,Updated mcp label to Official MCP and verified hosted Twilio MCP schema endpoints,Correct
+27,Telegram,Communications and Messaging,Bot Token,Third-party MCP,https://core.telegram.org/bots/api,Yes,Corrected mcp label to Third-party MCP,Correct
+31,Google Ads,Marketing Ads Email and Social,OAuth 2.0 + Developer Token,Official MCP,https://developers.google.com/google-ads/api/docs/start,Yes,Corrected mcp label to Official MCP,Correct
+35,Mailchimp,Marketing Ads Email and Social,API Key / OAuth 2.0,No,https://mailchimp.com/developer/,No,Corrected evidence link from homepage to developer subpath,Correct
+41,Shopify,Ecommerce,OAuth 2.0 / Custom App Access Token,Official MCP,https://shopify.dev/docs/api/admin-graphql,No,Corrected mcp label to Official MCP and link to graphql docs,Correct
+44,Salesforce Commerce Cloud,Ecommerce,OAuth 2.0,No,https://developer.salesforce.com/docs/commerce/commerce-api,No,Adjusted confidence rating from High to Medium due to gated sandboxes,Correct
+50,fanbasis,Ecommerce,API Key,No,https://fanbasis.com,No,Identified no public developer docs exist; changed confidence from High to Low,Correct
+58,Sherlock,Data SEO and Scraping,No API (CLI Tool),No,https://github.com/sherlock-project/sherlock,No,Corrected buildability to Not currently buildable and changed confidence to Low,Correct
+61,GitHub,Developer Infra and Data Platforms,Personal Access Tokens / OAuth 2.0,Official MCP,https://docs.github.com/en/rest,No,Updated mcp label to Official MCP and documentation path to REST subpath,Correct
+69,Datadog,Developer Infra and Data Platforms,API/App Keys / OAuth 2.0,Official MCP,https://docs.datadoghq.com/api/latest/,Yes,Corrected mcp label to Official MCP,Correct
+71,Notion,Productivity and Project Management,Internal Integration Token / OAuth 2.0,Official MCP,https://developers.notion.com/reference/,No,Updated mcp label to Official MCP and evidence link to API Reference,Correct
+81,Stripe,Finance and Fintech,Secret API Key / OAuth 2.0,Official MCP,https://stripe.com/docs/api,Yes,Updated mcp label to Official MCP,Correct
+95,Reducto,AI Research and Media,API Key (Bearer),Third-party MCP,https://studio.reducto.ai,Yes,Updated mcp label to Third-party MCP,Correct

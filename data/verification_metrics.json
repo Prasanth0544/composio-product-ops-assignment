@@ -1,0 +1,93 @@
+{
+    "sample_size": 20,
+    "first_pass_correct": 8,
+    "first_pass_accuracy": 40.0,
+    "final_correct": 20,
+    "final_accuracy": 100.0,
+    "mistakes_fixes": [
+        {
+            "id": "1",
+            "app_name": "Salesforce",
+            "category": "CRM and Sales",
+            "auth_method": "OAuth 2.0 (JWT Bearer flow)",
+            "correction": "Corrected link from homepage to REST API doc path and updated MCP field to Official MCP"
+        },
+        {
+            "id": "11",
+            "app_name": "Zendesk",
+            "category": "Support and Helpdesk",
+            "auth_method": "OAuth 2.0 / API Tokens",
+            "correction": "Updated evidence URL to point to api-reference rather than homepage"
+        },
+        {
+            "id": "13",
+            "app_name": "Freshdesk",
+            "category": "Support and Helpdesk",
+            "auth_method": "API Key (Basic Auth)",
+            "correction": "Corrected API surface from OAuth to Basic Auth Key-only"
+        },
+        {
+            "id": "21",
+            "app_name": "Slack",
+            "category": "Communications and Messaging",
+            "auth_method": "OAuth 2.0 (Bot Token)",
+            "correction": "Updated mcp label from yes to Official MCP and evidence link to Methods endpoint"
+        },
+        {
+            "id": "22",
+            "app_name": "Twilio",
+            "category": "Communications and Messaging",
+            "auth_method": "API Keys (Basic Auth)",
+            "correction": "Updated mcp label to Official MCP and verified hosted Twilio MCP schema endpoints"
+        },
+        {
+            "id": "35",
+            "app_name": "Mailchimp",
+            "category": "Marketing Ads Email and Social",
+            "auth_method": "API Key / OAuth 2.0",
+            "correction": "Corrected evidence link from homepage to developer subpath"
+        },
+        {
+            "id": "41",
+            "app_name": "Shopify",
+            "category": "Ecommerce",
+            "auth_method": "OAuth 2.0 / Custom App Access Token",
+            "correction": "Corrected mcp label to Official MCP and link to graphql docs"
+        },
+        {
+            "id": "44",
+            "app_name": "Salesforce Commerce Cloud",
+            "category": "Ecommerce",
+            "auth_method": "OAuth 2.0",
+            "correction": "Adjusted confidence rating from High to Medium due to gated sandboxes"
+        },
+        {
+            "id": "50",
+            "app_name": "fanbasis",
+            "category": "Ecommerce",
+            "auth_method": "API Key",
+            "correction": "Identified no public developer docs exist; changed confidence from High to Low"
+        },
+        {
+            "id": "58",
+            "app_name": "Sherlock",
+            "category": "Data SEO and Scraping",
+            "auth_method": "No API (CLI Tool)",
+            "correction": "Corrected buildability to Not currently buildable and changed confidence to Low"
+        },
+        {
+            "id": "61",
+            "app_name": "GitHub",
+            "category": "Developer Infra and Data Platforms",
+            "auth_method": "Personal Access Tokens / OAuth 2.0",
+            "correction": "Updated mcp label to Official MCP and documentation path to REST subpath"
+        },
+        {
+            "id": "71",
+            "app_name": "Notion",
+            "category": "Productivity and Project Management",
+            "auth_method": "Internal Integration Token / OAuth 2.0",
+            "correction": "Updated mcp label to Official MCP and evidence link to API Reference"
+        }
+    ]
+}
