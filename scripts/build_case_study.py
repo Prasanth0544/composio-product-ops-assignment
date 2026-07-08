@@ -1,10 +1,10 @@
-import json
+﻿import json
 import os
 import math
 
-JSON_PATH = os.path.join('data', 'apps_research.json')
-METRICS_PATH = os.path.join('data', 'verification_metrics.json')
-HTML_PATH = os.path.join('public', 'index.html')
+DEFAULT_JSON_PATH = os.path.join('data', 'apps_research.json')
+DEFAULT_METRICS_PATH = os.path.join('data', 'verification_metrics.json')
+DEFAULT_HTML_PATH = os.path.join('public', 'index.html')
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -63,187 +63,238 @@ def donut_svg(slices, size=200):
     return f'<div class="donut-wrap">{svg}<div class="donut-legend">{"".join(legend)}</div></div>'
 
 
-def build_html():
-    if not os.path.exists(JSON_PATH):
-        print(f"Error: {JSON_PATH} not found.")
-        return
 
-    with open(JSON_PATH, 'r', encoding='utf-8-sig') as f:
-        db = json.load(f)
+class AnalyticsAgent:
+    """Aggregates auth, access, buildability, and blocker distributions."""
 
-    metrics = {}
-    if os.path.exists(METRICS_PATH):
-        with open(METRICS_PATH, 'r', encoding='utf-8-sig') as f:
-            metrics = json.load(f)
+    def __init__(self, json_path=None, metrics_path=None):
+        self.json_path = json_path or DEFAULT_JSON_PATH
+        self.metrics_path = metrics_path or DEFAULT_METRICS_PATH
 
-    total_apps = len(db)
+    def aggregate(self):
+        if not os.path.exists(self.json_path):
+            print(f"Error: {self.json_path} not found.")
+            return None
 
-    # ── Buildability ────────────────────────────────────────────────────────
-    buildability_counts = {}
-    for app in db:
-        v = app.get("buildability", "Unknown")
-        buildability_counts[v] = buildability_counts.get(v, 0) + 1
+        with open(self.json_path, 'r', encoding='utf-8-sig') as f:
+            db = json.load(f)
 
-    build_colors = {
-        "Easy win":                "#059669",
-        "Buildable":               "#2563eb",
-        "Buildable with caveats":  "#d97706",
-        "Outreach needed":         "#7c3aed",
-        "Not currently buildable": "#dc2626"
-    }
-    buildability_bars = ""
-    max_build = max(buildability_counts.values()) if buildability_counts else 1
-    for label, count in sorted(buildability_counts.items(), key=lambda x: x[1], reverse=True):
-        buildability_bars += hbar(label, count, total_apps, build_colors.get(label, "#64748b"), max_build)
+        metrics = {}
+        if os.path.exists(self.metrics_path):
+            with open(self.metrics_path, 'r', encoding='utf-8-sig') as f:
+                metrics = json.load(f)
 
-    # ── Buildability by category ────────────────────────────────────────────
-    categories = sorted(set(app.get("category") for app in db))
-    cat_build = {}
-    for cat in categories:
-        cat_build[cat] = {"buildable": 0, "total": 0}
-    for app in db:
-        cat = app.get("category")
-        verdict = app.get("buildability", "")
-        if cat in cat_build:
-            cat_build[cat]["total"] += 1
-            if verdict in ("Easy win", "Buildable", "Buildable with caveats"):
-                cat_build[cat]["buildable"] += 1
+        total_apps = len(db)
 
-    cat_build_bars = ""
-    # sort by buildable count desc
-    for cat, d in sorted(cat_build.items(), key=lambda x: x[1]["buildable"], reverse=True):
-        count = d["buildable"]
-        total_cat = d["total"]
-        pct = (count / total_cat * 100) if total_cat else 0
-        cat_build_bars += f"""
-        <div class="chart-item">
-            <div class="chart-label">
-                <span style="font-size:0.82rem;">{cat}</span>
-                <span class="chart-val">{count}/{total_cat} &nbsp;<span style="color:#94a3b8;font-size:0.78rem;">({pct:.0f}%)</span></span>
-            </div>
-            <div class="chart-bar-bg">
-                <div class="chart-bar-fill" style="width:{pct:.1f}%;background:linear-gradient(90deg,#059669,#34d399);"></div>
-            </div>
-        </div>"""
+        # ── Buildability ────────────────────────────────────────────────────────
+        buildability_counts = {}
+        for app in db:
+            v = app.get("buildability", "Unknown")
+            buildability_counts[v] = buildability_counts.get(v, 0) + 1
 
-    # ── Self-serve ──────────────────────────────────────────────────────────
-    self_serve_counts = {}
-    for app in db:
-        v = app.get("self_serve_status", "Unknown")
-        self_serve_counts[v] = self_serve_counts.get(v, 0) + 1
+        build_colors = {
+            "Easy win":                "#059669",
+            "Buildable":               "#2563eb",
+            "Buildable with caveats":  "#d97706",
+            "Outreach needed":         "#7c3aed",
+            "Not currently buildable": "#dc2626"
+        }
+        buildability_bars = ""
+        max_build = max(buildability_counts.values()) if buildability_counts else 1
+        for label, count in sorted(buildability_counts.items(), key=lambda x: x[1], reverse=True):
+            buildability_bars += hbar(label, count, total_apps, build_colors.get(label, "#64748b"), max_build)
 
-    ss_colors = {"self-serve": "#059669", "mixed": "#d97706", "gated": "#dc2626"}
-    donut_slices = [
-        (k, self_serve_counts.get(k, 0), ss_colors.get(k, "#64748b"))
-        for k in ["self-serve", "mixed", "gated"]
-        if self_serve_counts.get(k, 0) > 0
-    ]
-    donut_html = donut_svg(donut_slices, size=180)
+        # ── Buildability by category ────────────────────────────────────────────
+        categories = sorted(set(app.get("category") for app in db))
+        cat_build = {}
+        for cat in categories:
+            cat_build[cat] = {"buildable": 0, "total": 0}
+        for app in db:
+            cat = app.get("category")
+            verdict = app.get("buildability", "")
+            if cat in cat_build:
+                cat_build[cat]["total"] += 1
+                if verdict in ("Easy win", "Buildable", "Buildable with caveats"):
+                    cat_build[cat]["buildable"] += 1
 
-    # ── MCP ─────────────────────────────────────────────────────────────────
-    mcp_counts = {}
-    for app in db:
-        v = app.get("mcp_available", "Unknown")
-        mcp_counts[v] = mcp_counts.get(v, 0) + 1
+        cat_build_bars = ""
+        # sort by buildable count desc
+        for cat, d in sorted(cat_build.items(), key=lambda x: x[1]["buildable"], reverse=True):
+            count = d["buildable"]
+            total_cat = d["total"]
+            pct = (count / total_cat * 100) if total_cat else 0
+            cat_build_bars += f"""
+            <div class="chart-item">
+                <div class="chart-label">
+                    <span style="font-size:0.82rem;">{cat}</span>
+                    <span class="chart-val">{count}/{total_cat} &nbsp;<span style="color:#94a3b8;font-size:0.78rem;">({pct:.0f}%)</span></span>
+                </div>
+                <div class="chart-bar-bg">
+                    <div class="chart-bar-fill" style="width:{pct:.1f}%;background:linear-gradient(90deg,#059669,#34d399);"></div>
+                </div>
+            </div>"""
 
-    # ── Auth ─────────────────────────────────────────────────────────────────
-    auth_counts = {
-        "OAuth 2.0": 0,
-        "API Key / Token": 0,
-        "Bearer Token": 0,
-        "Basic Auth": 0,
-        "Custom / Signed": 0,
-        "No hosted auth / CLI": 0
-    }
-    for app in db:
-        auth = app.get("auth_methods", "").lower()
-        if "oauth" in auth:
-            auth_counts["OAuth 2.0"] += 1
-        if "api key" in auth or "personal access" in auth or "access token" in auth or "bot token" in auth or "token" in auth:
-            auth_counts["API Key / Token"] += 1
-        if "bearer" in auth:
-            auth_counts["Bearer Token"] += 1
-        if "basic" in auth:
-            auth_counts["Basic Auth"] += 1
-        if "hmac" in auth or "signature" in auth or "custom" in auth or "certificate" in auth or "client id" in auth or "secret" in auth:
-            auth_counts["Custom / Signed"] += 1
-        if "no api" in auth or "cli" in auth:
-            auth_counts["No hosted auth / CLI"] += 1
+        # ── Self-serve ──────────────────────────────────────────────────────────
+        self_serve_counts = {}
+        for app in db:
+            v = app.get("self_serve_status", "Unknown")
+            self_serve_counts[v] = self_serve_counts.get(v, 0) + 1
 
-    auth_palette = ["#7c3aed","#2563eb","#0891b2","#059669","#d97706","#64748b"]
-    auth_bars = ""
-    max_auth = max(auth_counts.values()) if auth_counts else 1
-    for i, (label, count) in enumerate(sorted(auth_counts.items(), key=lambda x: x[1], reverse=True)):
-        if count > 0:
-            auth_bars += hbar(label, count, total_apps, auth_palette[i % len(auth_palette)], max_auth)
+        ss_colors = {"self-serve": "#059669", "mixed": "#d97706", "gated": "#dc2626"}
+        donut_slices = [
+            (k, self_serve_counts.get(k, 0), ss_colors.get(k, "#64748b"))
+            for k in ["self-serve", "mixed", "gated"]
+            if self_serve_counts.get(k, 0) > 0
+        ]
+        donut_html = donut_svg(donut_slices, size=180)
 
-    # ── Confidence ──────────────────────────────────────────────────────────
-    conf_counts = {}
-    for app in db:
-        v = app.get("confidence", "Unknown")
-        conf_counts[v] = conf_counts.get(v, 0) + 1
+        # ── MCP ─────────────────────────────────────────────────────────────────
+        mcp_counts = {}
+        for app in db:
+            v = app.get("mcp_available", "Unknown")
+            mcp_counts[v] = mcp_counts.get(v, 0) + 1
 
-    # ── Top blockers ─────────────────────────────────────────────────────────
-    blocker_buckets = {
-        "Enterprise / Admin Setup":  0,
-        "OAuth App Review":          0,
-        "Paid Plan Required":        0,
-        "No Public API":             0,
-        "Partner / Contract Access": 0,
-        "Gated Sandbox / Waitlist":  0,
-        "Rate Limits / Quotas":      0,
-    }
-    for app in db:
-        b = (app.get("main_blocker") or "").lower()
-        if not b or b == "—":
-            continue
-        if any(k in b for k in ["admin", "administrator", "enterprise", "certificate", "jwt"]):
-            blocker_buckets["Enterprise / Admin Setup"] += 1
-        if any(k in b for k in ["oauth", "approval", "app review", "verification"]):
-            blocker_buckets["OAuth App Review"] += 1
-        if any(k in b for k in ["paid", "pricing", "subscription", "plan", "commercial", "license"]):
-            blocker_buckets["Paid Plan Required"] += 1
-        if any(k in b for k in ["no api", "no public api", "no hosted api", "cli only", "local cli"]):
-            blocker_buckets["No Public API"] += 1
-        if any(k in b for k in ["partner", "contract", "nda", "sales", "enterprise agreement"]):
-            blocker_buckets["Partner / Contract Access"] += 1
-        if any(k in b for k in ["sandbox", "waitlist", "gated", "whitelist", "early access"]):
-            blocker_buckets["Gated Sandbox / Waitlist"] += 1
-        if any(k in b for k in ["rate limit", "quota", "throttl", "tier"]):
-            blocker_buckets["Rate Limits / Quotas"] += 1
+        # ── Auth ─────────────────────────────────────────────────────────────────
+        auth_counts = {
+            "OAuth 2.0": 0,
+            "API Key / Token": 0,
+            "Bearer Token": 0,
+            "Basic Auth": 0,
+            "Custom / Signed": 0,
+            "No hosted auth / CLI": 0
+        }
+        for app in db:
+            auth = app.get("auth_methods", "").lower()
+            if "oauth" in auth:
+                auth_counts["OAuth 2.0"] += 1
+            if "api key" in auth or "personal access" in auth or "access token" in auth or "bot token" in auth or "token" in auth:
+                auth_counts["API Key / Token"] += 1
+            if "bearer" in auth:
+                auth_counts["Bearer Token"] += 1
+            if "basic" in auth:
+                auth_counts["Basic Auth"] += 1
+            if "hmac" in auth or "signature" in auth or "custom" in auth or "certificate" in auth or "client id" in auth or "secret" in auth:
+                auth_counts["Custom / Signed"] += 1
+            if "no api" in auth or "cli" in auth:
+                auth_counts["No hosted auth / CLI"] += 1
 
-    blocker_colors = ["#dc2626","#7c3aed","#d97706","#0f172a","#2563eb","#0891b2","#64748b"]
-    blocker_bars = ""
-    max_blocker = max(blocker_buckets.values()) if any(blocker_buckets.values()) else 1
-    for i, (label, count) in enumerate(sorted(blocker_buckets.items(), key=lambda x: x[1], reverse=True)):
-        if count > 0:
-            blocker_bars += hbar(label, count, total_apps, blocker_colors[i % len(blocker_colors)], max_blocker)
+        auth_palette = ["#7c3aed","#2563eb","#0891b2","#059669","#d97706","#64748b"]
+        auth_bars = ""
+        max_auth = max(auth_counts.values()) if auth_counts else 1
+        for i, (label, count) in enumerate(sorted(auth_counts.items(), key=lambda x: x[1], reverse=True)):
+            if count > 0:
+                auth_bars += hbar(label, count, total_apps, auth_palette[i % len(auth_palette)], max_auth)
 
-    # ── Mistakes table ───────────────────────────────────────────────────────
-    mistakes_rows = ""
-    if metrics and "mistakes_fixes" in metrics:
-        for m in metrics["mistakes_fixes"]:
-            mistakes_rows += f"""
-            <tr>
-                <td><span class="badge-id">#{m['id']}</span> {m['app_name']}</td>
-                <td style="font-size:0.8rem;color:#475569;">{m['category']}</td>
-                <td style="font-family:monospace;font-size:0.8rem;color:#7c3aed;">{m['auth_method']}</td>
-                <td style="color:#047857;font-size:0.85rem;">{m['correction']}</td>
-            </tr>"""
+        # ── Confidence ──────────────────────────────────────────────────────────
+        conf_counts = {}
+        for app in db:
+            v = app.get("confidence", "Unknown")
+            conf_counts[v] = conf_counts.get(v, 0) + 1
 
-    # ── JS data ──────────────────────────────────────────────────────────────
-    db_serializable = [
-        {**app,
-         "confidence_level": app.get("confidence", "Unknown"),
-         "main_blocker": app.get("main_blocker") or "—"}
-        for app in db
-    ]
-    db_js = json.dumps(db_serializable, ensure_ascii=False)
+        # ── Top blockers ─────────────────────────────────────────────────────────
+        blocker_buckets = {
+            "Enterprise / Admin Setup":  0,
+            "OAuth App Review":          0,
+            "Paid Plan Required":        0,
+            "No Public API":             0,
+            "Partner / Contract Access": 0,
+            "Gated Sandbox / Waitlist":  0,
+            "Rate Limits / Quotas":      0,
+        }
+        for app in db:
+            b = (app.get("main_blocker") or "").lower()
+            if not b or b == "—":
+                continue
+            if any(k in b for k in ["admin", "administrator", "enterprise", "certificate", "jwt"]):
+                blocker_buckets["Enterprise / Admin Setup"] += 1
+            if any(k in b for k in ["oauth", "approval", "app review", "verification"]):
+                blocker_buckets["OAuth App Review"] += 1
+            if any(k in b for k in ["paid", "pricing", "subscription", "plan", "commercial", "license"]):
+                blocker_buckets["Paid Plan Required"] += 1
+            if any(k in b for k in ["no api", "no public api", "no hosted api", "cli only", "local cli"]):
+                blocker_buckets["No Public API"] += 1
+            if any(k in b for k in ["partner", "contract", "nda", "sales", "enterprise agreement"]):
+                blocker_buckets["Partner / Contract Access"] += 1
+            if any(k in b for k in ["sandbox", "waitlist", "gated", "whitelist", "early access"]):
+                blocker_buckets["Gated Sandbox / Waitlist"] += 1
+            if any(k in b for k in ["rate limit", "quota", "throttl", "tier"]):
+                blocker_buckets["Rate Limits / Quotas"] += 1
+
+        blocker_colors = ["#dc2626","#7c3aed","#d97706","#0f172a","#2563eb","#0891b2","#64748b"]
+        blocker_bars = ""
+        max_blocker = max(blocker_buckets.values()) if any(blocker_buckets.values()) else 1
+        for i, (label, count) in enumerate(sorted(blocker_buckets.items(), key=lambda x: x[1], reverse=True)):
+            if count > 0:
+                blocker_bars += hbar(label, count, total_apps, blocker_colors[i % len(blocker_colors)], max_blocker)
+
+        # ── Mistakes table ───────────────────────────────────────────────────────
+        mistakes_rows = ""
+        if metrics and "mistakes_fixes" in metrics:
+            for m in metrics["mistakes_fixes"]:
+                mistakes_rows += f"""
+                <tr>
+                    <td><span class="badge-id">#{m['id']}</span> {m['app_name']}</td>
+                    <td style="font-size:0.8rem;color:#475569;">{m['category']}</td>
+                    <td style="font-family:monospace;font-size:0.8rem;color:#7c3aed;">{m['auth_method']}</td>
+                    <td style="color:#047857;font-size:0.85rem;">{m['correction']}</td>
+                </tr>"""
+
+        # ── JS data ──────────────────────────────────────────────────────────────
+        db_serializable = [
+            {**app,
+             "confidence_level": app.get("confidence", "Unknown"),
+             "main_blocker": app.get("main_blocker") or "—"}
+            for app in db
+        ]
+        db_js = json.dumps(db_serializable, ensure_ascii=False)
+
+
+
+        return {
+            "db": db,
+            "metrics": metrics,
+            "total_apps": total_apps,
+            "buildability_counts": buildability_counts,
+            "buildability_bars": buildability_bars,
+            "categories": categories,
+            "cat_build_bars": cat_build_bars,
+            "self_serve_counts": self_serve_counts,
+            "donut_html": donut_html,
+            "mcp_counts": mcp_counts,
+            "auth_counts": auth_counts,
+            "auth_bars": auth_bars,
+            "conf_counts": conf_counts,
+            "blocker_bars": blocker_bars,
+            "mistakes_rows": mistakes_rows,
+            "db_js": db_js,
+        }
+
+
+class ReportAgent:
+    """Compiles layout templates, charts, and the paginated client database."""
+
+    def __init__(self, html_path=None):
+        self.html_path = html_path or DEFAULT_HTML_PATH
+
+    def render(self, agg):
+        buildability_counts = agg["buildability_counts"]
+        buildability_bars = agg["buildability_bars"]
+        categories = agg["categories"]
+        cat_build_bars = agg["cat_build_bars"]
+        donut_html = agg["donut_html"]
+        mcp_counts = agg["mcp_counts"]
+        auth_counts = agg["auth_counts"]
+        auth_bars = agg["auth_bars"]
+        conf_counts = agg["conf_counts"]
+        self_serve_counts = agg["self_serve_counts"]
+        blocker_bars = agg["blocker_bars"]
+        mistakes_rows = agg["mistakes_rows"]
+        db_js = agg["db_js"]
+        metrics = agg["metrics"]
+        total_apps = agg["total_apps"]
 
     # ═══════════════════════════════════════════════════════════════════════
-    # HTML
-    # ═══════════════════════════════════════════════════════════════════════
-    html_content = f"""<!DOCTYPE html>
+        html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1448,12 +1499,24 @@ def build_html():
 </body>
 </html>
 """
+        return html_content
 
-    os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
-    with open(HTML_PATH, 'w', encoding='utf-8-sig') as f:
-        f.write(html_content)
 
-    print(f"Generated case study dashboard successfully at: {HTML_PATH}")
+    def write_report(self, agg=None):
+        if agg is None:
+            agg = AnalyticsAgent().aggregate()
+        if agg is None:
+            return
+        html_content = self.render(agg)
+        os.makedirs(os.path.dirname(self.html_path), exist_ok=True)
+        with open(self.html_path, 'w', encoding='utf-8-sig') as f:
+            f.write(html_content)
+        print(f"Generated case study dashboard successfully at: {self.html_path}")
+
+
+def build_html():
+    agg = AnalyticsAgent().aggregate()
+    ReportAgent().write_report(agg)
 
 
 if __name__ == '__main__':

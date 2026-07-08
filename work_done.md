@@ -52,8 +52,17 @@ Created `scripts/build_case_study.py` to dynamically compile datasets and metric
 
 ---
 
-## 5. Visual Validation & Verification (Part 3)
-Visual display and functionality were verified using the browser agent:
-- Verified that dropdown selectors for categories filter rows instantly.
-- Verified that text search for `'Slack'` displays the app and related connectors instantly.
-- Verified responsive grid card rendering and layout integrity in the light mint theme.
+- Verified responsiveness and pagination layout integrity under a 10-row viewport.
+
+---
+
+## 6. Multi-Stage OOP Agent Refactoring (New - 'prasanth' branch)
+We refactored the entire functional code base into a clean, object-oriented multi-agent pipeline:
+* **OOP Redesign**: Converted procedural scripts into dedicated, single-responsibility agent classes:
+  - `ResearchAgent` (`scripts/research_agent.py`): Performs Link audit checks and DDG web queries.
+  - `VerificationAgent` (`scripts/verify_results.py`): Randomly audits samples and scores accuracy metrics.
+  - `AnalyticsAgent` (`scripts/build_case_study.py`): Reads, cleans, and compiles statistical counts.
+  - `ReportAgent` (`scripts/build_case_study.py`): Generates and writes the final dashboard file.
+* **Orchestrator Control** (`scripts/orchestrator.py`): Implemented a `MasterAgent` central controller class to configure global file paths and sequentially execute all agents or individual stages using simple CLI arguments.
+* **Documentation**: Detailed agent components, execution flows, input/output schemas, and architecture diagrams inside the [agent_architecture_plan.md](file:///c:/Users/prasa/Documents/Assignement/agent_architecture_plan.md) file.
+

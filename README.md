@@ -21,10 +21,12 @@ assignment-project/
     research_agent.py         # Dynamic CLI research agent with link verification
     verify_results.py         # QA validation tool (calculates accuracy scores & tracks fixes)
     build_case_study.py       # Compiler to build the case-study HTML webpage
+    orchestrator.py           # Master Agent orchestrator (runs full pipeline or single stages)
   public/
     index.html                # Compiled premium interactive dashboard
   README.md                   # Complete repository instructions (this file)
   work_done.md                # Summary of accomplishments
+  agent_architecture_plan.md  # Detailed architecture document for the OOP agent design
 ```
 
 ---
@@ -74,4 +76,24 @@ To read the compiled datasets and verification metrics, and regenerate the inter
 ```bash
 python scripts/build_case_study.py
 ```
+
+### 5. Run the Integrated Master Agent Orchestrator (New)
+You can run the entire OOP multi-stage pipeline or trigger specific stages sequentially using the central orchestrator:
+* **Run full pipeline** (Research -> Verify -> Analytics & Compile):
+  ```bash
+  python scripts/orchestrator.py --run-all
+  ```
+* **Run only the Research stage**:
+  ```bash
+  python scripts/orchestrator.py --research
+  ```
+* **Run only the Verification stage**:
+  ```bash
+  python scripts/orchestrator.py --verify
+  ```
+* **Run only the Analytics & Report compilation stage**:
+  ```bash
+  python scripts/orchestrator.py --report
+  ```
+
 After running, simply open `public/index.html` in any web browser to view the interactive dashboard.
