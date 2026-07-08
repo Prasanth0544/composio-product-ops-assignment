@@ -1,4 +1,4 @@
-{
+﻿{
     "sample_size": 20,
     "first_pass_correct": 8,
     "first_pass_accuracy": 40.0,
@@ -31,7 +31,7 @@
             "app_name": "Slack",
             "category": "Communications and Messaging",
             "auth_method": "OAuth 2.0 (Bot Token)",
-            "correction": "Updated mcp label from yes to Official MCP and evidence link to Methods endpoint"
+            "correction": "Updated evidence link to Slack auth docs and classified MCP as Third-party MCP because the server evidence is from the Model Context Protocol repository, not Slack-hosted docs."
         },
         {
             "id": "22",
@@ -66,14 +66,14 @@
             "app_name": "fanbasis",
             "category": "Ecommerce",
             "auth_method": "API Key",
-            "correction": "Identified no public developer docs exist; changed confidence from High to Low"
+            "correction": "Replaced homepage-only evidence with the public Fanbasis checkout SDK package and set final confidence to Medium / buildable with caveats due to limited full API docs."
         },
         {
             "id": "58",
             "app_name": "Sherlock",
             "category": "Data SEO and Scraping",
             "auth_method": "No API (CLI Tool)",
-            "correction": "Corrected buildability to Not currently buildable and changed confidence to Low"
+            "correction": "Corrected buildability to Not currently buildable; retained High confidence because the official GitHub repo clearly shows a local CLI utility with no hosted API."
         },
         {
             "id": "61",
@@ -87,7 +87,7 @@
             "app_name": "Notion",
             "category": "Productivity and Project Management",
             "auth_method": "Internal Integration Token / OAuth 2.0",
-            "correction": "Updated mcp label to Official MCP and evidence link to API Reference"
+            "correction": "Updated evidence link to Notion API Reference and classified MCP as Third-party MCP because the server evidence is from the Model Context Protocol repository, not Notion-hosted docs."
         }
     ]
 }

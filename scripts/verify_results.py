@@ -15,7 +15,7 @@ def calculate_metrics():
     final_correct_count = 0
     mistakes_fixes = []
     
-    with open(VERIF_PATH, 'r', encoding='utf-8') as f:
+    with open(VERIF_PATH, 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         for row in reader:
             total += 1
@@ -51,7 +51,7 @@ def calculate_metrics():
     }
     
     # Save metrics JSON
-    with open(METRICS_PATH, 'w', encoding='utf-8') as f:
+    with open(METRICS_PATH, 'w', encoding='utf-8-sig') as f:
         json.dump(metrics, f, indent=4, ensure_ascii=False)
         
     print("=== Verification Audit Report ===")

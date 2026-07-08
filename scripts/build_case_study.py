@@ -11,12 +11,12 @@ def build_html():
         print(f"Error: {JSON_PATH} not found.")
         return
         
-    with open(JSON_PATH, 'r', encoding='utf-8') as f:
+    with open(JSON_PATH, 'r', encoding='utf-8-sig') as f:
         db = json.load(f)
         
     metrics = {}
     if os.path.exists(METRICS_PATH):
-        with open(METRICS_PATH, 'r', encoding='utf-8') as f:
+        with open(METRICS_PATH, 'r', encoding='utf-8-sig') as f:
             metrics = json.load(f)
             
     # Compute stats
@@ -40,15 +40,30 @@ def build_html():
         v = app.get("mcp_available", "Unknown")
         mcp_counts[v] = mcp_counts.get(v, 0) + 1
         
-    # Auth methods summary (top 5)
-    auth_counts = {}
+    # Auth methods summary, normalized into reviewer-friendly buckets.
+    auth_counts = {
+        "OAuth 2.0": 0,
+        "API Key / Token": 0,
+        "Bearer Token": 0,
+        "Basic Auth": 0,
+        "Custom / Signed": 0,
+        "No hosted auth / CLI": 0
+    }
     for app in db:
-        methods = app.get("auth_methods", "None").split(",")
-        for m in methods:
-            m_clean = m.strip().split("(")[0].strip()
-            if m_clean:
-                auth_counts[m_clean] = auth_counts.get(m_clean, 0) + 1
-    sorted_auths = sorted(auth_counts.items(), key=lambda x: x[1], reverse=True)[:6]
+        auth = app.get("auth_methods", "").lower()
+        if "oauth" in auth:
+            auth_counts["OAuth 2.0"] += 1
+        if "api key" in auth or "api keys" in auth or "personal access" in auth or "access token" in auth or "bot token" in auth or "token" in auth:
+            auth_counts["API Key / Token"] += 1
+        if "bearer" in auth:
+            auth_counts["Bearer Token"] += 1
+        if "basic" in auth:
+            auth_counts["Basic Auth"] += 1
+        if "hmac" in auth or "signature" in auth or "custom" in auth or "certificate" in auth or "client id" in auth or "secret" in auth:
+            auth_counts["Custom / Signed"] += 1
+        if "no api" in auth or "cli" in auth or "no api/auth" in auth:
+            auth_counts["No hosted auth / CLI"] += 1
+    sorted_auths = [(k, v) for k, v in sorted(auth_counts.items(), key=lambda x: x[1], reverse=True) if v > 0]
     
     # Category list and data
     categories = sorted(list(set(app.get("category") for app in db)))
@@ -88,14 +103,14 @@ def build_html():
     # Buildability distribution bar chart
     buildability_bars = ""
     colors = {
-        "Easy win": "#10b981", # Green
-        "Buildable": "#3b82f6", # Blue
-        "Buildable with caveats": "#f59e0b", # Orange
-        "Outreach needed": "#8b5cf6", # Purple
-        "Not currently buildable": "#ef4444" # Red
+        "Easy win": "#059669", # Mint Green
+        "Buildable": "#2563eb", # Blue
+        "Buildable with caveats": "#d97706", # Orange
+        "Outreach needed": "#7c3aed", # Purple
+        "Not currently buildable": "#dc2626" # Red
     }
     for label, count in sorted(buildability_counts.items(), key=lambda x: x[1], reverse=True):
-        color = colors.get(label, "#6b7280")
+        color = colors.get(label, "#64748b")
         pct = (count / total_apps) * 100
         buildability_bars += f"""
         <div class="chart-item">
@@ -111,14 +126,14 @@ def build_html():
         
     # MCP Distribution bar chart
     mcp_colors = {
-        "Official MCP": "#10b981",
-        "Third-party MCP": "#3b82f6",
-        "No": "#ef4444",
-        "No official MCP found": "#ef4444"
+        "Official MCP": "#059669",
+        "Third-party MCP": "#2563eb",
+        "No": "#dc2626",
+        "No official MCP found": "#dc2626"
     }
     mcp_bars = ""
     for label, count in sorted(mcp_counts.items(), key=lambda x: x[1], reverse=True):
-        color = mcp_colors.get(label, "#6b7280")
+        color = mcp_colors.get(label, "#64748b")
         pct = (count / total_apps) * 100
         mcp_bars += f"""
         <div class="chart-item">
@@ -143,21 +158,21 @@ def build_html():
                 <span class="chart-val">{count} ({pct:.1f}%)</span>
             </div>
             <div class="chart-bar-bg">
-                <div class="chart-bar-fill" style="width: {pct}%; background-color: #ec4899;"></div>
+                <div class="chart-bar-fill" style="width: {pct}%; background-color: #db2777;"></div>
             </div>
         </div>
         """
 
     # Self-serve distribution bar chart
     self_serve_colors = {
-        "self-serve": "#10b981",
-        "gated": "#ef4444",
-        "mixed": "#f59e0b",
-        "unclear": "#6b7280"
+        "self-serve": "#059669",
+        "gated": "#dc2626",
+        "mixed": "#d97706",
+        "unclear": "#64748b"
     }
     self_serve_bars = ""
     for label, count in sorted(self_serve_counts.items(), key=lambda x: x[1], reverse=True):
-        color = self_serve_colors.get(label, "#6b7280")
+        color = self_serve_colors.get(label, "#64748b")
         pct = (count / total_apps) * 100
         self_serve_bars += f"""
         <div class="chart-item">
@@ -180,10 +195,10 @@ def build_html():
         for m in metrics["mistakes_fixes"]:
             mistakes_rows += f"""
             <tr>
-                <td style="color: #60a5fa;">#{m['id']} {m['app_name']}</td>
-                <td style="font-size: 0.85rem; color: #9ca3af;">{m['category']}</td>
-                <td style="font-family: monospace; font-size: 0.85rem; color: #ec4899;">{m['auth_method']}</td>
-                <td style="color: #34d399; font-size: 0.9rem;">{m['correction']}</td>
+                <td style="color: #2563eb; font-weight: 500;">#{m['id']} {m['app_name']}</td>
+                <td style="font-size: 0.85rem; color: #475569;">{m['category']}</td>
+                <td style="font-family: monospace; font-size: 0.85rem; color: #7c3aed;">{m['auth_method']}</td>
+                <td style="color: #047857; font-size: 0.9rem; font-weight: 500;">{m['correction']}</td>
             </tr>
             """
 
@@ -200,17 +215,17 @@ def build_html():
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --bg-color: #0b0f19;
-            --card-bg: #151d30;
-            --border-color: #232d45;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --accent-primary: #8b5cf6;
-            --accent-glow: rgba(139, 92, 246, 0.15);
-            --accent-blue: #3b82f6;
-            --accent-green: #10b981;
-            --accent-orange: #f59e0b;
-            --accent-red: #ef4444;
+            --bg-color: #f2faf6;
+            --card-bg: #ffffff;
+            --border-color: #d1ebd9;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --accent-primary: #059669;
+            --accent-glow: rgba(5, 150, 105, 0.08);
+            --accent-blue: #2563eb;
+            --accent-green: #059669;
+            --accent-orange: #d97706;
+            --accent-red: #dc2626;
             --font-display: 'Outfit', sans-serif;
             --font-body: 'Inter', sans-serif;
         }}
@@ -237,7 +252,7 @@ def build_html():
 
         /* Header Styles */
         header {{
-            background: linear-gradient(135deg, #18122b 0%, #0b0f19 100%);
+            background: linear-gradient(135deg, #d3ecd9 0%, #f2faf6 100%);
             border-bottom: 1px solid var(--border-color);
             padding: 60px 0 50px 0;
             margin-bottom: 40px;
@@ -264,9 +279,9 @@ def build_html():
 
         .badge {{
             display: inline-block;
-            background: rgba(139, 92, 246, 0.2);
+            background: rgba(5, 150, 105, 0.12);
             border: 1px solid var(--accent-primary);
-            color: #c084fc;
+            color: #065f46;
             padding: 6px 14px;
             border-radius: 50px;
             font-size: 0.85rem;
@@ -283,7 +298,7 @@ def build_html():
             font-weight: 800;
             line-height: 1.2;
             margin-bottom: 15px;
-            background: linear-gradient(to right, #ffffff 40%, #c084fc 100%);
+            background: linear-gradient(to right, #047857 40%, #0d9488 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }}
@@ -313,12 +328,14 @@ def build_html():
             justify-content: space-between;
             position: relative;
             overflow: hidden;
-            transition: transform 0.2s ease, border-color 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .stat-card:hover {{
             transform: translateY(-2px);
-            border-color: #3b4260;
+            border-color: #a7f3d0;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
         }}
 
         .stat-card::after {{
@@ -338,7 +355,7 @@ def build_html():
         .stat-title {{
             font-size: 0.9rem;
             color: var(--text-secondary);
-            font-weight: 500;
+            font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             margin-bottom: 10px;
@@ -349,7 +366,7 @@ def build_html():
             font-size: 2.2rem;
             font-weight: 700;
             margin-bottom: 5px;
-            color: #ffffff;
+            color: #0f172a;
         }}
 
         .stat-desc {{
@@ -370,6 +387,7 @@ def build_html():
             border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
         }}
 
         .card-title {{
@@ -382,6 +400,7 @@ def build_html():
             justify-content: space-between;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 15px;
+            color: #0f172a;
         }}
 
         .bullets-list {{
@@ -397,7 +416,7 @@ def build_html():
         }}
 
         .bullets-list li::before {{
-            content: "✦";
+            content: "âœ¦";
             position: absolute;
             left: 0;
             top: 0;
@@ -406,7 +425,7 @@ def build_html():
         }}
 
         .bullets-list li strong {{
-            color: #ffffff;
+            color: #0f172a;
         }}
 
         /* Distributions Charts */
@@ -417,7 +436,7 @@ def build_html():
         }}
 
         .chart-box {{
-            background: rgba(21, 29, 48, 0.5);
+            background: rgba(234, 246, 239, 0.4);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 20px;
@@ -426,7 +445,7 @@ def build_html():
         .chart-box-title {{
             font-size: 0.95rem;
             font-weight: 600;
-            color: #ffffff;
+            color: #0f172a;
             margin-bottom: 15px;
             font-family: var(--font-display);
         }}
@@ -444,12 +463,12 @@ def build_html():
         }}
 
         .chart-val {{
-            color: #ffffff;
-            font-weight: 500;
+            color: #0f172a;
+            font-weight: 600;
         }}
 
         .chart-bar-bg {{
-            background-color: #232d45;
+            background-color: #e2e8f0;
             height: 8px;
             border-radius: 4px;
             overflow: hidden;
@@ -481,8 +500,8 @@ def build_html():
         }}
 
         .matrix-table th {{
-            background-color: rgba(35, 45, 69, 0.4);
-            color: #ffffff;
+            background-color: #d3ecd9;
+            color: #065f46;
             font-weight: 600;
             font-family: var(--font-display);
         }}
@@ -490,20 +509,20 @@ def build_html():
         .matrix-table td.cat-cell {{
             text-align: left;
             font-weight: 500;
-            color: #ffffff;
-            background-color: rgba(21, 29, 48, 0.8);
+            color: #0f172a;
+            background-color: #f0fdf4;
         }}
 
         .matrix-table td.val-cell {{
             font-weight: 600;
         }}
 
-        .val-easy-win {{ color: var(--accent-green); background-color: rgba(16, 185, 129, 0.05); }}
-        .val-buildable {{ color: var(--accent-blue); background-color: rgba(59, 130, 246, 0.05); }}
-        .val-caveats {{ color: var(--accent-orange); background-color: rgba(245, 158, 11, 0.05); }}
-        .val-outreach {{ color: #c084fc; background-color: rgba(139, 92, 246, 0.05); }}
-        .val-not-buildable {{ color: var(--accent-red); background-color: rgba(239, 68, 68, 0.05); }}
-        .val-total {{ font-weight: 600; color: var(--text-secondary); background-color: rgba(35, 45, 69, 0.1); }}
+        .val-easy-win {{ color: #047857; background-color: rgba(16, 185, 129, 0.08); }}
+        .val-buildable {{ color: #1d4ed8; background-color: rgba(59, 130, 246, 0.08); }}
+        .val-caveats {{ color: #b45309; background-color: rgba(245, 158, 11, 0.08); }}
+        .val-outreach {{ color: #6d28d9; background-color: rgba(139, 92, 246, 0.08); }}
+        .val-not-buildable {{ color: #b91c1c; background-color: rgba(239, 68, 68, 0.08); }}
+        .val-total {{ font-weight: 600; color: #475569; background-color: rgba(204, 227, 213, 0.2); }}
 
         /* Research Table Section */
         .table-section {{
@@ -564,6 +583,7 @@ def build_html():
             overflow-x: auto;
             max-height: 800px;
             overflow-y: auto;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }}
 
         .research-table {{
@@ -573,8 +593,8 @@ def build_html():
         }}
 
         .research-table th {{
-            background-color: #1a243c;
-            color: #ffffff;
+            background-color: #d3ecd9;
+            color: #065f46;
             font-weight: 600;
             padding: 16px 20px;
             font-size: 0.85rem;
@@ -583,7 +603,7 @@ def build_html():
             position: sticky;
             top: 0;
             z-index: 10;
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 2px solid #a7d0b8;
             font-family: var(--font-display);
         }}
 
@@ -595,12 +615,12 @@ def build_html():
         }}
 
         .research-table tr:hover {{
-            background-color: rgba(255, 255, 255, 0.015);
+            background-color: rgba(5, 150, 105, 0.03);
         }}
 
         .app-name-col {{
             font-weight: 600;
-            color: #ffffff;
+            color: #0f172a;
         }}
 
         .tag {{
@@ -611,22 +631,22 @@ def build_html():
             font-weight: 600;
         }}
 
-        .tag-easy-win {{ background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }}
-        .tag-buildable {{ background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }}
-        .tag-caveats {{ background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }}
-        .tag-outreach {{ background-color: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); }}
-        .tag-not-buildable {{ background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }}
+        .tag-easy-win {{ background-color: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); }}
+        .tag-buildable {{ background-color: rgba(59, 130, 246, 0.12); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.3); }}
+        .tag-caveats {{ background-color: rgba(245, 158, 11, 0.12); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.3); }}
+        .tag-outreach {{ background-color: rgba(139, 92, 246, 0.12); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.3); }}
+        .tag-not-buildable {{ background-color: rgba(239, 68, 68, 0.12); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.3); }}
 
-        .tag-mcp-official {{ background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }}
-        .tag-mcp-thirdparty {{ background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }}
-        .tag-mcp-no {{ background-color: rgba(239, 68, 68, 0.1); color: #9ca3af; border: 1px solid rgba(255, 255, 255, 0.05); }}
+        .tag-mcp-official {{ background-color: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); }}
+        .tag-mcp-thirdparty {{ background-color: rgba(59, 130, 246, 0.12); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.3); }}
+        .tag-mcp-no {{ background-color: rgba(71, 85, 105, 0.08); color: #475569; border: 1px solid rgba(0, 0, 0, 0.05); }}
 
-        .tag-self-serve {{ background-color: rgba(16, 185, 129, 0.1); color: #34d399; }}
-        .tag-gated {{ background-color: rgba(239, 68, 68, 0.1); color: #f87171; }}
-        .tag-mixed {{ background-color: rgba(245, 158, 11, 0.1); color: #fbbf24; }}
+        .tag-self-serve {{ background-color: rgba(16, 185, 129, 0.1); color: #047857; }}
+        .tag-gated {{ background-color: rgba(239, 68, 68, 0.1); color: #b91c1c; }}
+        .tag-mixed {{ background-color: rgba(245, 158, 11, 0.1); color: #b45309; }}
 
         .ev-link {{
-            color: #60a5fa;
+            color: #2563eb;
             text-decoration: none;
             display: inline-block;
             max-width: 150px;
@@ -637,7 +657,7 @@ def build_html():
         }}
 
         .ev-link:hover {{
-            color: #93c5fd;
+            color: #1d4ed8;
             text-decoration: underline;
         }}
 
@@ -677,7 +697,7 @@ def build_html():
         }}
 
         .step-body h4 {{
-            color: #ffffff;
+            color: #0f172a;
             font-size: 0.95rem;
             margin-bottom: 5px;
         }}
@@ -702,9 +722,9 @@ def build_html():
         }}
 
         .verif-mistakes-table th {{
-            color: #ffffff;
+            color: #0f172a;
             font-weight: 600;
-            background-color: rgba(35, 45, 69, 0.3);
+            background-color: #d3ecd9;
         }}
 
         /* Links row */
@@ -718,9 +738,9 @@ def build_html():
         }}
 
         .btn-link {{
-            background-color: #1a243c;
+            background-color: #d3ecd9;
             border: 1px solid var(--border-color);
-            color: #ffffff;
+            color: #065f46;
             padding: 10px 20px;
             border-radius: 6px;
             text-decoration: none;
@@ -730,8 +750,9 @@ def build_html():
         }}
 
         .btn-link:hover {{
-            background-color: var(--accent-primary);
-            border-color: var(--accent-primary);
+            background-color: #047857;
+            border-color: #047857;
+            color: #ffffff;
         }}
 
         /* Tooltip */
@@ -781,10 +802,10 @@ def build_html():
             </div>
             <div class="stat-card accuracy">
                 <div>
-                    <div class="stat-title">Audit Accuracy</div>
+                    <div class="stat-title">Sample Accuracy</div>
                     <div class="stat-value">{metrics.get('final_accuracy', 100.0)}%</div>
                 </div>
-                <div class="stat-desc">Calculated post-verification on the 20-app sample check ({metrics.get('first_pass_accuracy', 40.0)}% first-pass).</div>
+                <div class="stat-desc">Calculated on the 20-app verification sample after corrections ({metrics.get('first_pass_accuracy', 40.0)}% first-pass).</div>
             </div>
         </div>
 
@@ -793,10 +814,10 @@ def build_html():
             <div class="card">
                 <div class="card-title">Executive Summary & Major Findings</div>
                 <ul class="bullets-list">
-                    <li><strong>Model Context Protocol (MCP) Momentum:</strong> Native MCP support is rising rapidly. <strong>{mcp_counts.get('Official MCP', 0)} platforms</strong> have launched official hosted/local MCP servers (including <em>Salesforce, Slack, Twilio, Plain, GitHub, Notion, Stripe, Otter AI, Consensus, Higgsfield,</em> and <em>Grain</em>), allowing immediate plug-and-play agent connectivity.</li>
+                    <li><strong>Model Context Protocol (MCP) Momentum:</strong> MCP support is becoming a useful routing signal. The dataset marks <strong>{mcp_counts.get('Official MCP', 0)} official MCP signals</strong> and <strong>{mcp_counts.get('Third-party MCP', 0)} third-party/community MCP signals</strong>, with official labels reserved for company or project-controlled evidence.</li>
                     <li><strong>Authentication Landscape:</strong> <strong>OAuth 2.0</strong> is the dominant standard for CRM, Messaging, and Ads tools, requiring token exchanges. Developers can leverage self-serve <strong>API Keys</strong> or <strong>Bearer Tokens</strong> for fast scripting on {auth_counts.get('API Key', 0) + auth_counts.get('Bearer Token', 0)} of the researched platforms.</li>
                     <li><strong>Low-Hanging Fruit vs. Gatekeepers:</strong> We identified <strong>{buildability_counts.get('Easy win', 0)} Easy Wins</strong>. Conversely, fintech platforms (e.g., <em>Paygent</em>, <em>PitchBook</em>) and enterprise ads platforms are heavily gated, demanding NDA requests or active sales contracts.</li>
-                    <li><strong>Process Optimization:</strong> Refining evidence links and confidence calibrations corrected <strong>12 discrepancies</strong> in the 20-app audit check, elevating the agent research accuracy to <strong>100%</strong> in final verified datasets.</li>
+                    <li><strong>Process Optimization:</strong> Refining evidence links, MCP labels, and confidence calibrations corrected <strong>12 discrepancies</strong> in the 20-app audit check, reaching <strong>100%</strong> correctness on that checked sample after corrections.</li>
                 </ul>
             </div>
             <div class="card">
@@ -910,7 +931,7 @@ def build_html():
                     <div class="step-num">1</div>
                     <div class="step-body">
                         <h4>Seed Initialization</h4>
-                        <p>Loaded seed list of 100 apps with category labels and domain starting endpoints into structured JSON schema database.</p>
+                        <p>Loaded seed list of 100 apps with category labels and domain starting endpoints into structured JSON database.</p>
                     </div>
                 </div>
                 <div class="workflow-step">
@@ -1040,7 +1061,7 @@ def build_html():
                     <td style="color: var(--text-secondary); text-align: center;">${{app.id}}</td>
                     <td class="app-name-col">${{app.app_name}}</td>
                     <td style="color: var(--text-secondary);">${{app.category}}</td>
-                    <td style="font-family: monospace; font-size: 0.8rem; color: #ec4899;">${{app.auth_methods}}</td>
+                    <td style="font-family: monospace; font-size: 0.8rem; color: #7c3aed;">${{app.auth_methods}}</td>
                     <td><span class="tag ${{getSelfServeClass(app.self_serve_status)}}">${{app.self_serve_status}}</span></td>
                     <td><span class="tag ${{getMcpClass(app.mcp_available)}}">${{app.mcp_available}}</span></td>
                     <td><span class="tag ${{getVerdictClass(app.buildability)}}">${{app.buildability}}</span></td>
@@ -1065,7 +1086,7 @@ def build_html():
 """
 
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
-    with open(HTML_PATH, 'w', encoding='utf-8') as f:
+    with open(HTML_PATH, 'w', encoding='utf-8-sig') as f:
         f.write(html_content)
         
     print(f"Generated case study dashboard successfully at: {HTML_PATH}")

@@ -5,8 +5,8 @@ This document provides a comprehensive summary of accomplishments across all par
 ---
 
 ## 1. Final Audit & Data Calibration (Part 1 & 2)
-We audited and updated low-confidence or home-page-only links to point to official developer portals or TypeScript SDKs. Key updates include:
-- **`fanbasis` (ID 50)**: Upgraded to `High` confidence and `Easy win`. Verified the official developer TypeScript/JavaScript SDK (`@fanbasis/checkout-sdk`) available on NPM.
+We audited and updated low-confidence or homepage-only links to point to official developer portals or TypeScript SDKs. Key updates include:
+- **`fanbasis` (ID 50)**: Updated from homepage-only evidence to the public `@fanbasis/checkout-sdk` package on NPM. Final label is `Medium` confidence and `Buildable with caveats` because full API coverage is not documented in a broad public developer portal.
 - **`iPayX` (ID 85)**: Upgraded to `High` confidence and `Easy win`. Discovered and verified their **Official MCP** server hosted on Supabase (`hvujzsdwcoweirroubeh.supabase.co/functions/v1/mcp-server`) and open-source FX audit repo on GitHub.
 - **`Consensus` (ID 94)**: Upgraded to `High` confidence and `Easy win`. Verified their **Official MCP** server and self-serve developer settings for generating keys inside their webapp integrations section.
 - **`Otter AI` (ID 92)**: Upgraded to `High` confidence and `Buildable with caveats`. Verified the official release of their **Official MCP** server allowing direct Claude/ChatGPT transcript searches.
@@ -14,9 +14,9 @@ We audited and updated low-confidence or home-page-only links to point to offici
 - **`Higgsfield` (ID 97)**: Upgraded to `High` confidence and `Easy win`. Verified their **Official MCP** server, Python SDK, and official CLI at `github.com/higgsfield-ai/cli`.
 
 These updates resulted in a complete data calibration:
-* **High Confidence**: 83 apps
-* **Medium Confidence**: 17 apps
-* **Low Confidence**: 0 apps (fully resolved)
+* **High Confidence**: 80 apps
+* **Medium Confidence**: 20 apps
+* **Low Confidence**: 0 apps
 
 ---
 
@@ -33,7 +33,7 @@ Refactored `scripts/research_agent.py` to remove the 1800 lines of hardcoded dat
 ## 3. QA Automated Verification System (Part 2)
 Implemented `scripts/verify_results.py` to audit a random sample of 20 apps against live developer specs:
 - **First-pass Accuracy**: **40.0%** (12 mistakes corrected). Discrepancies primarily involved outdated homepage evidence URLs, generic MCP labels, or overly optimistic confidence defaults.
-- **Final Accuracy**: **100.0%** (All corrections programmatically integrated back into the master JSON/CSV databases).
+- **Final Accuracy On Checked Sample**: **100.0%** after corrections on the 20-app verification sample. This is not claimed as perfect accuracy across all 100 apps.
 - **Log of Fixes**: Saves detailed metrics to `data/verification_metrics.json`.
 
 ---

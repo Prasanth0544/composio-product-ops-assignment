@@ -19,7 +19,7 @@ def load_database():
     if not os.path.exists(JSON_PATH):
         print(f"Error: Database file {JSON_PATH} not found.")
         sys.exit(1)
-    with open(JSON_PATH, 'r', encoding='utf-8') as f:
+    with open(JSON_PATH, 'r', encoding='utf-8-sig') as f:
         return json.load(f)
 
 def save_database(db):
@@ -27,13 +27,13 @@ def save_database(db):
     os.makedirs('data', exist_ok=True)
     
     # Save JSON file
-    with open(JSON_PATH, 'w', encoding='utf-8') as f:
+    with open(JSON_PATH, 'w', encoding='utf-8-sig') as f:
         json.dump(db, f, indent=4, ensure_ascii=False)
     
     # Save CSV file
     if db:
         headers = list(db[0].keys())
-        with open(CSV_PATH, 'w', newline='', encoding='utf-8') as f:
+        with open(CSV_PATH, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
             writer.writerows(db)

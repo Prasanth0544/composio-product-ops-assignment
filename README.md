@@ -29,12 +29,12 @@ assignment-project/
 ## Deliverables & Key Stats
 
 - **100 Researched Apps**: Every app has 15 fields audited, including descriptions, authentication methods, self-serve credentials access, and Model Context Protocol (MCP) server support.
-- **Calibrated Confidence Rating**: High (83) / Medium (17) / Low (0). No blank values remain.
-- **Model Context Protocol (MCP)**: Identified 10 platforms with official hosted/local MCP servers (including *Salesforce, Plain, Slack, Twilio, Otter AI, Consensus, Higgsfield, and Grain*) and verified community-maintained packages.
+- **Calibrated Confidence Rating**: High (80) / Medium (20) / Low (0). No blank values remain.
+- **Model Context Protocol (MCP)**: Identified 14 official MCP signals and 4 third-party/community MCP signals. Official labels are reserved for company or project-controlled evidence; reference/community servers are labeled separately.
 - **Aesthetic Case Study Dashboard**: Fully responsive dark-themed dashboard at `public/index.html` featuring interactive text search, category/verdict dropdown filters, buildability matrices, and detailed audit mistake logs.
 - **Verification Audit**: Analyzed a random 20-app sample.
   - **First-pass Accuracy**: 40.0%
-  - **Final Accuracy (After Calibration Loop)**: 100.0%
+  - **Final Accuracy On Checked Sample (After Calibration Loop)**: 100.0%
 
 ---
 
@@ -60,7 +60,7 @@ python scripts/research_agent.py --update-field 50 confidence High
 ```
 
 ### 3. Compute QA Verification Accuracy
-To analyze the verification sample, calculate accuracy metrics, and generate the metrics JSON payload:
+To analyze the 20-app verification sample, calculate sample accuracy metrics, and generate the metrics JSON payload:
 ```bash
 python scripts/verify_results.py
 ```
