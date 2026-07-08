@@ -42,11 +42,13 @@ Implemented `scripts/verify_results.py` to audit a random sample of 20 apps agai
 Created `scripts/build_case_study.py` to dynamically compile datasets and metrics into a modern single-page HTML dashboard at `public/index.html`.
 
 ### Key Interface Features:
-* **Light Mint Theme Aesthetics**: Clean, light-mint grid palette (`#f2faf6` background, pure white cards, emerald accent colors) using Outfit and Inter typography, subtle shadow borders, and responsive cards.
-* **Pattern Visualizations**: Progress visualizations depicting buildability verdicts (Easy wins, Buildables, Gated), MCP readiness, authentication methods, and credential access models.
-* **Interactive Research Grid**: Filterable and searchable table powered by client-side Javascript. Includes instant text search (matches app name, description, auth, category, blocker) and select dropdowns for category, buildability, and MCP.
+* **Key Takeaways & Metrics Banner**: A high-impact executive summary panel displaying main statistics (e.g. 80% immediate buildability, 100% QA accuracy) in a glance.
+* **Interactive Research Grid**: Filterable and searchable table powered by client-side Javascript. Includes instant text search (matches app name, description, auth, category, blocker) and select dropdowns for category, buildability, access, and MCP.
+* **10-Row Interactive Pagination**: Controls clutter by splitting table data into clean 10-row pages with responsive Prev/Next buttons and page numbers.
 * **Live Evidence Links**: Links point directly to subpaths like `/docs`, `/api-reference`, `/developer`, or npm READMEs.
 * **QA Mistake Ledger**: Highlights mistakes detected and corrected during sample verification, showing a commitment to data integrity.
+* **Multi-Agent Pipeline Diagram**: Depicts the visual execution path of the input, research agent, QA verification, analysis, and dashboard compilation as a cohesive multi-agent architecture.
+* **Automatic CI/CD Deployments**: Deploys via `.github/workflows/deploy.yml` which auto-generates static content pushes to GitHub Pages on commit.
 
 ---
 

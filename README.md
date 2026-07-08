@@ -8,6 +8,9 @@ This repository contains the dynamic research agent pipeline, verification tooli
 
 ```text
 assignment-project/
+  .github/
+    workflows/
+      deploy.yml              # GitHub Actions deployment workflow (GitHub Pages)
   data/
     apps_seed.csv             # 100 apps with category & starting urls
     apps_research.json        # Dynamic researched JSON database (100 apps)
@@ -31,7 +34,8 @@ assignment-project/
 - **100 Researched Apps**: Every app has 15 fields audited, including descriptions, authentication methods, self-serve credentials access, and Model Context Protocol (MCP) server support.
 - **Calibrated Confidence Rating**: High (80) / Medium (20) / Low (0). No blank values remain.
 - **Model Context Protocol (MCP)**: Identified 14 official MCP signals and 4 third-party/community MCP signals. Official labels are reserved for company or project-controlled evidence; reference/community servers are labeled separately.
-- **Light Mint Case Study Dashboard**: Fully responsive light mint themed dashboard at `public/index.html` featuring interactive text search, category/verdict dropdown filters, buildability matrices, and detailed audit mistake logs.
+- **Light Mint Case Study Dashboard**: Fully responsive light mint themed dashboard at `public/index.html` featuring interactive text search, category/verdict dropdown filters, buildability matrices, detailed audit mistake logs, **paginated 10-row views**, and a **Key Takeaways summary**.
+- **Automated Deployments**: Integrates `.github/workflows/deploy.yml` to automatically build and deploy changes to GitHub Pages (`gh-pages` branch) on every push.
 - **Verification Audit**: Analyzed a random 20-app sample.
   - **First-pass Accuracy**: 40.0%
   - **Final Accuracy On Checked Sample (After Calibration Loop)**: 100.0%
