@@ -42,7 +42,7 @@ Implemented `scripts/verify_results.py` to audit a random sample of 20 apps agai
 Created `scripts/build_case_study.py` to dynamically compile datasets and metrics into a modern single-page HTML dashboard at `public/index.html`.
 
 ### Key Interface Features:
-* **Dark Mode Aesthetics**: Clean, dark grid palette using Outfit and Inter typography, subtle accent colors, and responsive cards.
+* **Light Mint Theme Aesthetics**: Clean, light-mint grid palette (`#f2faf6` background, pure white cards, emerald accent colors) using Outfit and Inter typography, subtle shadow borders, and responsive cards.
 * **Pattern Visualizations**: Progress visualizations depicting buildability verdicts (Easy wins, Buildables, Gated), MCP readiness, authentication methods, and credential access models.
 * **Interactive Research Grid**: Filterable and searchable table powered by client-side Javascript. Includes instant text search (matches app name, description, auth, category, blocker) and select dropdowns for category, buildability, and MCP.
 * **Live Evidence Links**: Links point directly to subpaths like `/docs`, `/api-reference`, `/developer`, or npm READMEs.
@@ -54,4 +54,4 @@ Created `scripts/build_case_study.py` to dynamically compile datasets and metric
 Visual display and functionality were verified using the browser agent:
 - Verified that dropdown selectors for categories filter rows instantly.
 - Verified that text search for `'Slack'` displays the app and related connectors instantly.
-- Verified responsive grid card rendering and layout integrity in dark mode.
+- Verified responsive grid card rendering and layout integrity in the light mint theme.

@@ -31,7 +31,7 @@ assignment-project/
 - **100 Researched Apps**: Every app has 15 fields audited, including descriptions, authentication methods, self-serve credentials access, and Model Context Protocol (MCP) server support.
 - **Calibrated Confidence Rating**: High (80) / Medium (20) / Low (0). No blank values remain.
 - **Model Context Protocol (MCP)**: Identified 14 official MCP signals and 4 third-party/community MCP signals. Official labels are reserved for company or project-controlled evidence; reference/community servers are labeled separately.
-- **Aesthetic Case Study Dashboard**: Fully responsive dark-themed dashboard at `public/index.html` featuring interactive text search, category/verdict dropdown filters, buildability matrices, and detailed audit mistake logs.
+- **Light Mint Case Study Dashboard**: Fully responsive light mint themed dashboard at `public/index.html` featuring interactive text search, category/verdict dropdown filters, buildability matrices, and detailed audit mistake logs.
 - **Verification Audit**: Analyzed a random 20-app sample.
   - **First-pass Accuracy**: 40.0%
   - **Final Accuracy On Checked Sample (After Calibration Loop)**: 100.0%

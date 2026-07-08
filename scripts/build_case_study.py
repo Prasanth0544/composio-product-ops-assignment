@@ -186,8 +186,20 @@ def build_html():
         </div>
         """
 
-    # Render App research database rows in JS format for lightning-fast search/filter
-    db_js = json.dumps(db, ensure_ascii=False)
+    # Confidence distribution (using 'confidence' field in JSON)
+    conf_counts = {}
+    for app in db:
+        v = app.get("confidence", "Unknown")
+        conf_counts[v] = conf_counts.get(v, 0) + 1
+
+    # Render App research database rows in JS format.
+    # Add 'confidence_level' alias so JS templates can use either key name.
+    db_serializable = [
+        {**app, "confidence_level": app.get("confidence", "Unknown"),
+         "main_blocker": app.get("main_blocker") or "—"}
+        for app in db
+    ]
+    db_js = json.dumps(db_serializable, ensure_ascii=False)
     
     # Render mistakes table
     mistakes_rows = ""
@@ -815,7 +827,7 @@ def build_html():
                 <div class="card-title">Executive Summary & Major Findings</div>
                 <ul class="bullets-list">
                     <li><strong>Model Context Protocol (MCP) Momentum:</strong> MCP support is becoming a useful routing signal. The dataset marks <strong>{mcp_counts.get('Official MCP', 0)} official MCP signals</strong> and <strong>{mcp_counts.get('Third-party MCP', 0)} third-party/community MCP signals</strong>, with official labels reserved for company or project-controlled evidence.</li>
-                    <li><strong>Authentication Landscape:</strong> <strong>OAuth 2.0</strong> is the dominant standard for CRM, Messaging, and Ads tools, requiring token exchanges. Developers can leverage self-serve <strong>API Keys</strong> or <strong>Bearer Tokens</strong> for fast scripting on {auth_counts.get('API Key', 0) + auth_counts.get('Bearer Token', 0)} of the researched platforms.</li>
+                    <li><strong>Authentication Landscape:</strong> <strong>OAuth 2.0</strong> is the dominant standard for CRM, Messaging, and Ads tools, requiring token exchanges. Developers can leverage self-serve <strong>API Keys</strong> or <strong>Bearer Tokens</strong> for fast scripting on {auth_counts.get('API Key / Token', 0) + auth_counts.get('Bearer Token', 0)} of the researched platforms. <strong>{conf_counts.get('High', 0)} apps</strong> carry High confidence, with <strong>{conf_counts.get('Medium', 0)}</strong> at Medium confidence.</li>
                     <li><strong>Low-Hanging Fruit vs. Gatekeepers:</strong> We identified <strong>{buildability_counts.get('Easy win', 0)} Easy Wins</strong>. Conversely, fintech platforms (e.g., <em>Paygent</em>, <em>PitchBook</em>) and enterprise ads platforms are heavily gated, demanding NDA requests or active sales contracts.</li>
                     <li><strong>Process Optimization:</strong> Refining evidence links, MCP labels, and confidence calibrations corrected <strong>12 discrepancies</strong> in the 20-app audit check, reaching <strong>100%</strong> correctness on that checked sample after corrections.</li>
                 </ul>
@@ -1035,7 +1047,7 @@ def build_html():
                     app.category.toLowerCase().includes(query) ||
                     app.one_line_description.toLowerCase().includes(query) ||
                     app.auth_methods.toLowerCase().includes(query) ||
-                    app.main_blocker.toLowerCase().includes(query);
+                    (app.main_blocker || '').toLowerCase().includes(query);
 
                 // Filter matching
                 const matchesCategory = categoryFilter === '' || app.category === categoryFilter;
