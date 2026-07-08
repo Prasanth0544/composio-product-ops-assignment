@@ -14,8 +14,8 @@ from research_agent import ResearchAgent
 from verify_results import VerificationAgent
 
 
-class MasterAgent:
-  """Central orchestrator for the multi-stage research pipeline."""
+class PipelineOrchestrator:
+  """Central controller for the multi-stage research pipeline."""
 
   def __init__(self, base_dir=None):
     self.base_dir = base_dir or PROJECT_ROOT
@@ -42,46 +42,46 @@ class MasterAgent:
     self.report_agent = ReportAgent(html_path=self.paths['html'])
 
   def run_research(self):
-    print('\n[MasterAgent] Stage 1/3 — ResearchAgent: validating evidence links...')
+    print('\n[Orchestrator] Stage 1/3 — ResearchAgent: validating evidence links...')
     start = time.perf_counter()
     self.research_agent.audit()
     elapsed = time.perf_counter() - start
-    print(f'[MasterAgent] Research stage completed in {elapsed:.2f}s')
+    print(f'[Orchestrator] Research stage completed in {elapsed:.2f}s')
 
   def run_verify(self):
-    print('\n[MasterAgent] Stage 2/3 — VerificationAgent: computing QA metrics...')
+    print('\n[Orchestrator] Stage 2/3 — VerificationAgent: computing QA metrics...')
     start = time.perf_counter()
     self.verification_agent.calculate_metrics()
     elapsed = time.perf_counter() - start
-    print(f'[MasterAgent] Verification stage completed in {elapsed:.2f}s')
+    print(f'[Orchestrator] Verification stage completed in {elapsed:.2f}s')
 
   def run_report(self):
-    print('\n[MasterAgent] Stage 3/3 — AnalyticsAgent + ReportAgent: building dashboard...')
+    print('\n[Orchestrator] Stage 3/3 — AnalyticsAgent + ReportAgent: building dashboard...')
     start = time.perf_counter()
     agg = self.analytics_agent.aggregate()
     self.report_agent.write_report(agg)
     elapsed = time.perf_counter() - start
-    print(f'[MasterAgent] Report stage completed in {elapsed:.2f}s')
+    print(f'[Orchestrator] Report stage completed in {elapsed:.2f}s')
 
   def run_all(self):
-    print('=== MasterAgent: Starting full pipeline ===')
+    print('=== PipelineOrchestrator: Starting full pipeline ===')
     pipeline_start = time.perf_counter()
     self.run_research()
     self.run_verify()
     self.run_report()
     elapsed = time.perf_counter() - pipeline_start
-    print(f'\n=== MasterAgent: Pipeline complete in {elapsed:.2f}s ===')
+    print(f'\n=== PipelineOrchestrator: Pipeline complete in {elapsed:.2f}s ===')
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Multi-stage OOP agent orchestrator')
+  parser = argparse.ArgumentParser(description='Multi-stage OOP pipeline orchestrator')
   parser.add_argument('--run-all', action='store_true', help='Run research, verification, and report stages')
   parser.add_argument('--research', action='store_true', help='Run ResearchAgent link audit')
   parser.add_argument('--verify', action='store_true', help='Run VerificationAgent metrics')
   parser.add_argument('--report', action='store_true', help='Run AnalyticsAgent + ReportAgent dashboard build')
   args = parser.parse_args()
 
-  orchestrator = MasterAgent()
+  orchestrator = PipelineOrchestrator()
 
   if args.run_all:
     orchestrator.run_all()

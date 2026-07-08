@@ -4,7 +4,7 @@ This document outlines the class-based redesign of the research pipeline into mo
 
 ```
                   ┌──────────────────────┐
-                  │     MasterAgent      │
+                  │ PipelineOrchestrator │
                   │   (orchestrator)     │
                   └──────────┬───────────┘
             ┌────────────────┼────────────────┐
@@ -50,7 +50,7 @@ This document outlines the class-based redesign of the research pipeline into mo
   - Compiles layout templates, dynamic SVG charts, and the 100-app paginated client database.
   - Overwrites the final case study site at `public/index.html`.
 
-### 👑 MasterAgent (Orchestrator)
+### 👑 PipelineOrchestrator
 * **File:** `scripts/orchestrator.py`
 * **Inputs:** Command line arguments (`--run-all`, `--research`, `--verify`, `--report`).
 * **Responsibilities:**
