@@ -511,7 +511,7 @@ def build_html():
             transition: border-color 0.15s;
         }}
         .filters-row input:focus, .filters-row select:focus {{ border-color: var(--accent); }}
-        .table-wrap {{ overflow-x: auto; max-height: 560px; overflow-y: auto; border-radius: 10px; border: 1px solid var(--border); }}
+        .table-wrap {{ overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }}
         table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
         thead tr {{ background: #e8f5ef; position: sticky; top: 0; z-index: 2; }}
         thead th {{
@@ -561,7 +561,61 @@ def build_html():
             border-radius: 4px;
             margin-right: 4px;
         }}
-        .row-count {{ font-size: 0.78rem; color: var(--muted); margin-top: 8px; }}
+        .row-count {{ font-size: 0.78rem; color: var(--muted); }}
+        .pagination-bar {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+            padding: 0 2px;
+        }}
+        .pg-controls {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        .pg-btn {{
+            padding: 6px 14px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.15s;
+        }}
+        .pg-btn:hover:not(:disabled) {{
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }}
+        .pg-btn:disabled {{
+            opacity: 0.35;
+            cursor: not-allowed;
+        }}
+        .pg-numbers {{ display: flex; gap: 4px; align-items: center; }}
+        .pg-num {{
+            width: 34px; height: 34px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: white;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s;
+        }}
+        .pg-num:hover {{ background: #f0fdf4; border-color: var(--accent); color: var(--accent); }}
+        .pg-num.active {{
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            font-weight: 700;
+        }}
+        .pg-ellipsis {{ color: var(--muted); font-size: 0.85rem; padding: 0 4px; }}
 
         /* ── Workflow ─────────────────────────────────────── */
         .flow-wrap {{
@@ -896,7 +950,7 @@ def build_html():
                 <option value="">All MCP</option>
                 <option value="Official MCP">Official MCP</option>
                 <option value="Third-party MCP">Third-party MCP</option>
-                <option value="No">No MCP</option>
+                <option value="No official MCP found">No MCP</option>
             </select>
         </div>
         <div class="table-wrap">
@@ -917,7 +971,14 @@ def build_html():
                 <tbody id="tableBody"></tbody>
             </table>
         </div>
-        <div class="row-count" id="rowCount"></div>
+        <div class="pagination-bar">
+            <div id="rowCount" class="row-count"></div>
+            <div class="pg-controls">
+                <button id="pgPrev" class="pg-btn" title="Previous page">&#8592; Prev</button>
+                <div id="pgNumbers" class="pg-numbers"></div>
+                <button id="pgNext" class="pg-btn" title="Next page">Next &#8594;</button>
+            </div>
+        </div>
     </div>
 </section>
 
@@ -1073,6 +1134,7 @@ def build_html():
     function getMcpClass(v) {{
         if (v === 'Official MCP')     return 'tag-mcp-off';
         if (v === 'Third-party MCP')  return 'tag-mcp-3p';
+        if (v === 'No official MCP found') return 'tag-mcp-no';
         return 'tag-mcp-no';
     }}
 
@@ -1083,6 +1145,96 @@ def build_html():
         return '';
     }}
 
+    let currentPage = 1;
+    const PAGE_SIZE  = 10;
+    let lastFiltered = [];
+
+    function buildRow(app) {{
+        const docsUrl    = (app.docs_url || app.website || '').split(',')[0].trim();
+        const displayUrl = docsUrl.replace(/^https?:\/\/(www\.)?/, '').split('/').slice(0,3).join('/');
+        return `<tr>
+            <td style="color:#94a3b8;text-align:center;font-size:0.78rem;">${{app.id}}</td>
+            <td>
+                <div class="app-name">${{app.app_name}}</div>
+                <div class="app-desc" title="${{app.one_line_description}}">${{app.one_line_description || ''}}</div>
+            </td>
+            <td style="font-size:0.78rem;color:#475569;">${{app.category}}</td>
+            <td class="api-mono">${{app.auth_methods}}</td>
+            <td><span class="tag ${{getSSClass(app.self_serve_status)}}">${{app.self_serve_status}}</span></td>
+            <td style="font-size:0.78rem;color:#475569;max-width:130px;">${{app.api_surface || ''}}</td>
+            <td><span class="tag ${{getMcpClass(app.mcp_available)}}">${{app.mcp_available}}</span></td>
+            <td><span class="tag ${{getVerdictClass(app.buildability)}}">${{app.buildability}}</span></td>
+            <td><a href="${{docsUrl}}" target="_blank" class="ev-link" title="${{docsUrl}}">${{displayUrl}}</a></td>
+        </tr>`;
+    }}
+
+    function renderPage() {{
+        if (lastFiltered.length === 0) {{
+            tableBody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#64748b;">No matching apps found.</td></tr>';
+            renderPagination(0);
+            return;
+        }}
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const slice = lastFiltered.slice(start, start + PAGE_SIZE);
+        tableBody.innerHTML = slice.map(buildRow).join('');
+        renderPagination(lastFiltered.length);
+    }}
+
+    function renderPagination(total) {{
+        const totalPages = Math.ceil(total / PAGE_SIZE);
+        const pgPrev    = document.getElementById('pgPrev');
+        const pgNext    = document.getElementById('pgNext');
+        const pgNumbers = document.getElementById('pgNumbers');
+        const rowCount  = document.getElementById('rowCount');
+
+        const start = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+        const end   = Math.min(currentPage * PAGE_SIZE, total);
+        rowCount.textContent = total === 0
+            ? 'No apps match your filters'
+            : `Showing ${{start}}–${{end}} of ${{total}} apps`;
+
+        pgPrev.disabled = currentPage <= 1;
+        pgNext.disabled = currentPage >= totalPages;
+
+        // Page number buttons (show up to 7 centered around current)
+        let nums = [];
+        for (let i = 1; i <= totalPages; i++) nums.push(i);
+        // Trim to a window of 7
+        let winNums = nums;
+        if (totalPages > 7) {{
+            const half = 3;
+            let lo = Math.max(1, currentPage - half);
+            let hi = Math.min(totalPages, currentPage + half);
+            if (hi - lo < 6) {{
+                if (lo === 1) hi = Math.min(totalPages, lo + 6);
+                else          lo = Math.max(1, hi - 6);
+            }}
+            winNums = [];
+            if (lo > 1) winNums.push('...');
+            for (let i = lo; i <= hi; i++) winNums.push(i);
+            if (hi < totalPages) winNums.push('...');
+        }}
+
+        pgNumbers.innerHTML = winNums.map(n =>
+            n === '...'
+                ? `<span class="pg-ellipsis">…</span>`
+                : `<button class="pg-num ${{n === currentPage ? 'active' : ''}}" onclick="gotoPage(${{n}})">${{n}}</button>`
+        ).join('');
+    }}
+
+    window.gotoPage = function(n) {{
+        currentPage = n;
+        renderPage();
+        document.getElementById('tableBody').closest('section').scrollIntoView({{behavior:'smooth',block:'start'}});
+    }};
+
+    document.getElementById('pgPrev').addEventListener('click', () => {{
+        if (currentPage > 1) {{ currentPage--; renderPage(); }}
+    }});
+    document.getElementById('pgNext').addEventListener('click', () => {{
+        currentPage++; renderPage();
+    }});
+
     function renderTable() {{
         const query          = (searchInput.value || '').toLowerCase().trim();
         const categoryFilter = filterCategory.value;
@@ -1090,14 +1242,14 @@ def build_html():
         const ssFilter       = filterSS.value;
         const mcpFilter      = filterMCP.value;
 
-        const filtered = appDatabase.filter(app => {{
+        lastFiltered = appDatabase.filter(app => {{
             const matchesText =
-                (app.app_name          || '').toLowerCase().includes(query) ||
-                (app.category          || '').toLowerCase().includes(query) ||
+                (app.app_name             || '').toLowerCase().includes(query) ||
+                (app.category             || '').toLowerCase().includes(query) ||
                 (app.one_line_description || '').toLowerCase().includes(query) ||
-                (app.auth_methods      || '').toLowerCase().includes(query) ||
-                (app.main_blocker      || '').toLowerCase().includes(query) ||
-                (app.api_surface       || '').toLowerCase().includes(query);
+                (app.auth_methods         || '').toLowerCase().includes(query) ||
+                (app.main_blocker         || '').toLowerCase().includes(query) ||
+                (app.api_surface          || '').toLowerCase().includes(query);
 
             const matchesCat   = !categoryFilter || app.category         === categoryFilter;
             const matchesBuild = !buildFilter    || app.buildability      === buildFilter;
@@ -1107,32 +1259,8 @@ def build_html():
             return matchesText && matchesCat && matchesBuild && matchesSS && matchesMCP;
         }});
 
-        rowCount.textContent = `Showing ${{filtered.length}} of ${{appDatabase.length}} apps`;
-
-        if (filtered.length === 0) {{
-            tableBody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#64748b;">No matching apps found.</td></tr>';
-            return;
-        }}
-
-        tableBody.innerHTML = filtered.map(app => {{
-            const docsUrl     = (app.docs_url || app.website || '').split(',')[0].trim();
-            const displayUrl  = docsUrl.replace(/^https?:\\/\\/(www\\.)?/, '').split('/').slice(0,3).join('/');
-
-            return `<tr>
-                <td style="color:#94a3b8;text-align:center;font-size:0.78rem;">${{app.id}}</td>
-                <td>
-                    <div class="app-name">${{app.app_name}}</div>
-                    <div class="app-desc" title="${{app.one_line_description}}">${{app.one_line_description || ''}}</div>
-                </td>
-                <td style="font-size:0.78rem;color:#475569;">${{app.category}}</td>
-                <td class="api-mono">${{app.auth_methods}}</td>
-                <td><span class="tag ${{getSSClass(app.self_serve_status)}}">${{app.self_serve_status}}</span></td>
-                <td style="font-size:0.78rem;color:#475569;max-width:130px;">${{app.api_surface || ''}}</td>
-                <td><span class="tag ${{getMcpClass(app.mcp_available)}}">${{app.mcp_available}}</span></td>
-                <td><span class="tag ${{getVerdictClass(app.buildability)}}">${{app.buildability}}</span></td>
-                <td><a href="${{docsUrl}}" target="_blank" class="ev-link" title="${{docsUrl}}">${{displayUrl}}</a></td>
-            </tr>`;
-        }}).join('');
+        currentPage = 1; // reset to first page on any filter change
+        renderPage();
     }}
 
     searchInput.addEventListener('input',     renderTable);
